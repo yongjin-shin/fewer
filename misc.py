@@ -9,7 +9,7 @@ from argparse import Namespace
 def fix_arguments(args):
     args = Namespace(**args)
 
-    if args.gpu and torch.cuda.is_available():
+    if args.gpu:
         args.device = torch.device("cuda")
     else:
         args.device = torch.device("cpu")
