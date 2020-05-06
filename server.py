@@ -8,7 +8,7 @@ from local import Local
 from data import Mydataset
 from networks import MLP, CNN
 from aggregation import get_aggregation_func
-from purning import *
+from pruning import *
 
 class Server:
     def __init__(self, args):
@@ -19,6 +19,7 @@ class Server:
         
         # pruning handler
         self.pruning_handler = PruningHandler(args)
+        self.sparsity = 0
         
         # dataset
         self.dataset_train, self.dataset_test = None, None
@@ -67,7 +68,7 @@ class Server:
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
             
             # pruning step
-            self.pruning_handler.pruner(self.model, r)
+            self.model = self.pruning_handler.pruner(self.model, r)
             
             # distribution step
             self.distribute_models(sampled_devices, self.model)

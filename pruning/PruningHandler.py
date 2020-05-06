@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.utils.prune as prune
 
-from pruning_utils import *
+from .pruning_utils import *
 
 __all__ = ['PruningHandler']
 
@@ -13,19 +13,12 @@ class PruningHandler():
         Pruning Handler to control pruning & recovery
         (default setting) : globally prune with L1 norm & no recovery
         """
-        # Specify pruning plan for each round
-        self.pruning_plan = self._planner(args.enable_pruning,
-                                          args.pruning_plan, 
-                                          mode='pruning')
-        
-        # Specify recovery plan for each round
-        self.recovery_plan = self._planner(args.enable_recovery,
-                                           args.recovery_plan , 
-                                           mode='recovery')
+        # Specify pruning & recovery plan for each round
+        self.pruning_plan, self.recovery_plan = self._planner(args)
         
         # Set pruning options
         self.globally = globally
-        self.pruning = prune.l1_unstructured if prune_method is None else prune_method
+        self.pruning = prune.L1Unstructured if prune_method is None else prune_method
         self.recovery = recovery_method
         
         
@@ -40,6 +33,11 @@ class PruningHandler():
             prune.global_unstructured(weight_set,
                                       pruning_method=self.pruning, 
                                       amount=amount)
+            #print(self.global_sparsity_evaluator(model))
+            # Deploy permenant pruning (remove reparametrization)
+            for module in weight_set:
+                prune.remove(module[0], module[1]) 
+            #print(self.global_sparsity_evaluator(model))
         else:
             raise NotImplementedError('recovery is not implemented yet!')
                 
@@ -48,6 +46,8 @@ class PruningHandler():
             #        self.pruning(module, name='weight', amount=pruning_plan['conv'][fed_round])
             #    if isinstance(module, torch.nn.Linear):
             #        self.pruning(module, name='weight', amount=pruning_plan['fc'][fed_round])
+            
+        return model
                 
     def recoverer(self, model, recovery_signals, fed_round):
         """
@@ -55,7 +55,7 @@ class PruningHandler():
         Recover weights (expected to be called before aggregation)
         """
         
-        return recovery_signal
+        return recovery_signals
 
     def global_sparsity_evaluator(self, model):
         """Evaluate current sparsity of model"""
@@ -90,12 +90,23 @@ class PruningHandler():
         amount = round(target_amount / (1-current_sparsity + 1e-7), 5)
         return amount
     
-    def _planner(self, plan, mode='pruning'):
-        if mode == 'pruning':
-            return list_organizer(plan)
+    def _planner(self, args):        
+        if args.enable_pruning:
+            assert sum(args.pruning_plan) == args.nb_rounds,\
+            'plan should should be same with nb_rounds!'
+            
+            pruning_plan = list_organizer(args.pruning_pack,
+                                  args.pruning_plan)
+        else:
+            pruning_plan  [0] * args.nb_rounds
+
+        if args.enable_recovery:
+            assert sum(args.recovery_plan) == args.nb_rounds,\
+            'plan should should be same with nb_rounds!'
+            
+            recovery_plan = list_organizer(args.recovery_pack,
+                                  args.recovery_plan)
+        else:
+            recovery_plan =  [0] * args.nb_rounds
         
-        else mode == 'recovery':
-            # To be implemented
-            return list_organizer(plan)
-        
-        return plan
+        return pruning_plan, recovery_plan

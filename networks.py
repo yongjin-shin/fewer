@@ -4,19 +4,19 @@ import torch.nn as nn
 class MLP(nn.Module):
     def __init__(self, dim_in, dim_hidden, dim_out):
         super(MLP, self).__init__()
-        self.layer_input = nn.Linear(dim_in, dim_hidden)
+        self.fc1 = nn.Linear(dim_in, dim_hidden)
         self.elu = nn.ELU()
         self.dropout = nn.Dropout(0.2)
-        self.fc = nn.Linear(dim_hidden, dim_out)
+        self.fc2 = nn.Linear(dim_hidden, dim_out)
         self.LogSoftmax = nn.LogSoftmax(dim=1)
         print("\nMLP was made")
 
     def forward(self, x):
         x = x.view(-1, x.shape[1]*x.shape[-1])
-        x = self.layer_input(x)
+        x = self.fc1(x)
         x = self.dropout(x)
         x = self.elu(x)
-        x = self.fc(x)
+        x = self.fc2(x)
         return self.LogSoftmax(x)
 
 
