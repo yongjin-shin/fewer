@@ -118,7 +118,7 @@ class Server:
             y_pred = torch.argmax(torch.exp(logprobs), dim=1)
             correct += torch.sum(y_pred.view(-1) == y.view(-1)).cpu().item()
             
-        current_sparsity = self.pruning_handler.global_sparsity_evaluator()
+        current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
         print('Current Sparsity: %0.4f' % current_sparsity)
 
         self.model.train()
