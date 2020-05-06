@@ -19,6 +19,9 @@ class Local:
         self.model = None
         self.optim = None
         self.loss_func = torch.nn.NLLLoss(reduction='mean')
+        
+        # recovery signal
+        self.recovery = None
 
     def train(self):
         train_loss, itr, ep = 0, 0, 0
@@ -38,7 +41,7 @@ class Local:
 
             # print(f"{self.c_id}th Client | Train loss: {train_loss / (itr + 1):.3f} | Train Acc: {correct * 100 / len(self.dataset['y']):.3f}@ {ep}")
         return train_loss / ((ep+1) * (itr+1))
-
+    
     def get_dataset(self, dataset):
         self.dataset = dataset
         self.data_loader = DataLoader(Mydataset(self.dataset), batch_size=self.args.local_bs, shuffle=True)
@@ -59,3 +62,10 @@ class Local:
 
     def upload_model(self):
         return copy.deepcopy(self.model.state_dict())
+    
+    def upload_recovery_signal(self):
+        return copy.deepcopy(self.recovery)
+    
+    def _recoverer(self):
+        """To be implemented"""
+        self.recovery = None
