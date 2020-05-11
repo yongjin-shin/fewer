@@ -9,19 +9,14 @@ import numpy as np
 class Mydataset(Dataset):
     def __init__(self, dataset, args):
         self.args = args
+        self.x = dataset['x']
+        self.y = dataset['y']
 
-        if isinstance(dataset['x'], list):
-            self.x = torch.cat(dataset['x'])
-            self.y = torch.cat(dataset['y'])
-        else:
-            self.x = dataset['x']
-            self.y = dataset['y']
-
-        if self.args.model == 'cnn':
-            if self.args.dataset == 'cifar10':
-                self.x = self.x.permute(0, 3, 1, 2)
-            elif 'mnist' in self.args.dataset:
+        if 'cnn' in self.args.model:
+            if 'mnist' in self.args.dataset:
                 self.x = self.x.reshape((-1, 1, 28, 28))
+            elif 'cifar' in self.args.dataset:
+                self.x = self.x.permute(0, 3, 1, 2)
             else:
                 raise NotImplementedError
 
@@ -48,11 +43,20 @@ class Preprocessor:
 
     def distribute_data(self, server):
         """ 서버에게 Train, Test 데이터 전달함 """
+
         dataset_train, dataset_test = self.download_dataset()
-        train = {'x': torch.tensor(dataset_train.train_data).to(self.args.device),
-                 'y': torch.tensor(dataset_train.train_labels).to(self.args.device)}
-        test = {'x': torch.tensor(dataset_test.test_data).to(self.args.device),
-                'y': torch.tensor(dataset_test.test_labels).to(self.args.device)}
+        if 'mnist' in self.args.dataset:
+            train = {'x': dataset_train.train_data.to(self.args.device),
+                     'y': dataset_train.train_labels.to(self.args.device)}
+            test = {'x': dataset_test.test_data.to(self.args.device),
+                    'y': dataset_test.test_labels.to(self.args.device)}
+        elif 'cifar' in self.args.dataset:
+            train = {'x': torch.tensor(dataset_train.data).to(self.args.device),
+                     'y': torch.tensor(dataset_train.targets).to(self.args.device)}
+            test = {'x': torch.tensor(dataset_test.data).to(self.args.device),
+                    'y': torch.tensor(dataset_test.targets).to(self.args.device)}
+        else:
+            raise NotImplementedError
 
         dataset_server, dataset_locals = self.make_data_for_local_and_server(train)
         server.get_data(dataset_server, dataset_locals, test)

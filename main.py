@@ -9,6 +9,10 @@ from server import Server
 from data import Preprocessor
 from misc import save_results, fix_arguments
 
+# Ignore warnings
+import warnings
+warnings.filterwarnings('ignore')
+
 
 def single_experiment(args, i):
     print(f'======================{args.dataset} exp: {i + 1}====================')

@@ -1,35 +1,24 @@
 # federated arguments
-nb_rounds: 5  # communication rounds
+nb_rounds: 30  # communication rounds
 nb_devices: 100  # 로컬 클라이언트 수
 nb_server_data: 0  # 서버가 지니고 있는 데이터 개수
 local_ep: 5  # 로컬 모델 update 횟수
-local_bs: 50  # 로컬 Training Batch Size
+local_bs: 10  # 로컬 Training Batch Size
 ratio_clients_per_round: 0.1  # 한 라운드에 몇 명에게 보낼까?
 aggregation_alg: 'fedavg' # aggregtion algorithm
 
 
-# fedPR arguments
-enable_pruning: True
-pruning_pack: [0, 0.1, 0.05, 0.03, 0.01, 0]
-pruning_plan: [1, 2, 1, 0, 0, 1]
-
-enable_recovery: False
-recovery_pack: []
-recovery_plan: []
-
 # model arguments
-model: 'testcnn' #mlp, mnistcnn, cifarcnn, testcnn
+model: 'mlp' #mlp, cnn
 hidden: 256
 loss_func: 'CrossEntropy'
-lr: 0.01
+lr: 0.001
 optimizer: 'sgd'  # 'adam', 'sgd'
-momentum: 0.9
-weight_decay: 0  # 5e-4
 
 # dataset arguments
 dataset: 'mnist' # mnist, fmnist, cifar10
-iid: False  # True, False
-nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
+iid: True  # True, False
+nb_max_classes: 3  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
 # misc
 gpu: True

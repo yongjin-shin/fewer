@@ -4,7 +4,7 @@ Hello World
 ## Environments
 ```shell script
 python == 3.7.0
-pytorch == 1.4.0
+pytorch == 1.5.0
 ```
 Please install required packages through ```pip install -r requirements.txt```
 
