@@ -1,5 +1,5 @@
 # federated arguments
-nb_rounds: 30  # communication rounds
+nb_rounds: 5  # communication rounds
 nb_devices: 100  # 로컬 클라이언트 수
 nb_server_data: 0  # 서버가 지니고 있는 데이터 개수
 local_ep: 5  # 로컬 모델 update 횟수
@@ -11,7 +11,7 @@ aggregation_alg: 'fedavg' # aggregtion algorithm
 # fedPR arguments
 enable_pruning: True
 pruning_pack: [0, 0.1, 0.05, 0.03, 0.01, 0]
-pruning_plan: [5, 0, 5, 10, 10, 0]
+pruning_plan: [1, 2, 1, 0, 0, 1]
 
 enable_recovery: False
 recovery_pack: []

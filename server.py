@@ -68,33 +68,42 @@ class Server:
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
             
             # pruning step
-            self.model = self.pruning_handler.pruner(self.model, r)
-            
+            self.model, keeped_masks = self.pruning_handler.pruner(self.model, r)
+
             # distribution step
             self.distribute_models(sampled_devices, self.model)
             
             # client training & upload models
-            train_loss, updated_locals, recovery_signals = self.clients_training(sampled_devices)
+            train_loss, updated_locals, recovery_signals = self.clients_training(sampled_devices, keeped_masks)
             
             # recovery step
             self.pruning_handler.recoverer(self.model, recovery_signals, r)
             
             # aggregation step
             self.aggregation_models(updated_locals)
-
+            
+            # test & log results
             test_loss, test_acc = self.test()
             self.logging(train_loss.item(), test_loss, test_acc, r, exp_id)
 
         return self.container
 
-    def clients_training(self, sampled_devices):
+    def clients_training(self, sampled_devices, keeped_masks=None):
         """Local의 training 하나씩 실행함. multiprocessing은 구현하지 않았음."""
         updated_locals = []
         recovery_signals = []
         train_loss = 0
 
         for i in sampled_devices:
+            if keeped_masks is not None:    
+                # get and apply pruned mask from global
+                self.pruning_handler.mask_adder(self.locals[i].model, keeped_masks)
+            
             train_loss += self.locals[i].train()
+            
+            # merge mask of local (remove masks but pruned weights are still zero)
+            self.pruning_handler.mask_merger(self.locals[i].model)
+            
             updated_locals.append(self.locals[i].upload_model())
             recovery_signals.append(self.locals[i].upload_recovery_signal())
 
