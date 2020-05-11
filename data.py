@@ -7,13 +7,24 @@ import numpy as np
 
 
 class Mydataset(Dataset):
-    def __init__(self, dataset):
+    def __init__(self, dataset, args):
+        self.args = args
+
         if isinstance(dataset['x'], list):
             self.x = torch.cat(dataset['x'])
             self.y = torch.cat(dataset['y'])
         else:
             self.x = dataset['x']
             self.y = dataset['y']
+
+        if self.args.model == 'cnn':
+            if self.args.dataset == 'cifar10':
+                self.x = self.x.permute(0, 3, 1, 2)
+            elif 'mnist' in self.args.dataset:
+                self.x = self.x.reshape((-1, 1, 28, 28))
+            else:
+                raise NotImplementedError
+
         self.std, self.mean = torch.std_mean(self.x.float())
 
     def unique(self):
@@ -65,7 +76,7 @@ class Preprocessor:
 
     def split_data_for_locals(self, tot_len_data_local, train):
         data_locals = []
-        len_data_local = int(tot_len_data_local / self.args.nb_devices)
+        len_data_local = int(tot_len_data_local / self.args.nb_devices)  # e.g. 600 = 60,000 / 100
 
         # non iid 데이터를 만들어준다
         distributed_idx = self.make_non_iid(train['y'].cpu().numpy(), len_data_local)
@@ -89,7 +100,7 @@ class Preprocessor:
             # Todo: Unbalanced dataset을 만들기 위해서는 아래 num_shards를 수정해야 함
             # 하나의 local은 nb_max_classes만큼 unique한 class를 가져갈 거임
             # 다만, 각 class의 개수는 num_shards만큼 동일함.
-            shard_size = int(length / self.args.nb_max_classes)
+            shard_size = int(length / self.args.nb_max_classes)  # e.g. 300 = 600 / 2
             unique_classes = np.unique(label)
 
             tot_idx_by_label = []  # shape: class x num_shards x shard_size
@@ -104,7 +115,6 @@ class Preprocessor:
             # 각 client 별로 randomly 각기 다른 class를 뽑음
             for _ in range(self.args.nb_devices):
                 idx_by_devices = []
-
                 while len(idx_by_devices) < self.args.nb_max_classes:
                     chosen_label = np.random.choice(unique_classes, 1, replace=False)[0]  # 임의의 Label을 하나 뽑음
                     if len(tot_idx_by_label[chosen_label]) > 0:  # 만약 해당 Label의 shard가 하나라도 남아있다면,

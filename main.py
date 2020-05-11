@@ -15,6 +15,8 @@ def single_experiment(args, i):
     np.random.seed(int(args.seed + i))  # for the reproducibility
     torch.manual_seed(int(args.seed + i))
     random.seed(int(args.seed + i))
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     args.seed += 1
 
     data = Preprocessor(args)  # Data 불러오는 곳

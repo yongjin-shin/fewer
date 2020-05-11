@@ -41,7 +41,7 @@ class Local:
 
     def get_dataset(self, dataset):
         self.dataset = dataset
-        self.data_loader = DataLoader(Mydataset(self.dataset), batch_size=self.args.local_bs, shuffle=True)
+        self.data_loader = DataLoader(Mydataset(self.dataset, self.args), batch_size=self.args.local_bs, shuffle=True)
         if len(dataset['y']) <= 0:
             raise RuntimeError
 
@@ -51,7 +51,10 @@ class Local:
     def get_model(self, model):
         self.model = copy.deepcopy(model)
         if 'sgd' == self.args.optimizer:
-            self.optim = torch.optim.SGD(self.model.parameters(), lr=self.args.lr)
+            self.optim = torch.optim.SGD(self.model.parameters(),
+                                         lr=self.args.lr,
+                                         momentum=self.args.momentum,
+                                         weight_decay=self.args.weight_decay)
         elif 'adam' == self.args.optimizer:
             self.optim = torch.optim.Adam(self.model.parameters(), lr=self.args.lr)
         else:

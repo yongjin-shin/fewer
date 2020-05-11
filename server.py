@@ -6,7 +6,7 @@ import torch
 # Related Classes
 from local import Local
 from data import Mydataset
-from networks import MLP, CNN
+from networks import MLP, MnistCNN, CifarCnn
 from aggregation import get_aggregation_func
 
 
@@ -36,7 +36,7 @@ class Server:
         """raw data를 받아와서 server와 local에 데이터를 분배함"""
         self.dataset_train, self.dataset_test = dataset_server, dataset_test
 
-        dataset_test = Mydataset(self.dataset_test)
+        dataset_test = Mydataset(self.dataset_test, self.args)
         self.test_loader = DataLoader(dataset_test, batch_size=100, shuffle=True)
         self.nb_unique_label = dataset_test.unique()
 
@@ -50,7 +50,7 @@ class Server:
             model = MLP(self.dataset_test['x'][0].shape.numel(), self.args.hidden,
                         torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
         elif self.args.model == 'cnn':
-            model = CNN(self.dataset_test['x'][0].shape[-1] if self.args.dataset == 'cifar10' else 1,
+            model = MnistCNN(self.dataset_test['x'][0].shape[-1] if self.args.dataset == 'cifar10' else 1,
                         torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
         else:
             raise NotImplementedError
