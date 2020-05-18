@@ -19,3 +19,5 @@ You might not need to create an empty ```log``` folder.
 ## Run
 Related hyperparameters are in config/config.yaml. Configuration can be controlled config/config.yaml.
 Run with the following script:```python main.py```
+
+* Caution on UnicodeDecodeError for config.yaml
