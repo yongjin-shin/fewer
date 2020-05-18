@@ -5,6 +5,10 @@ Hello World
 ```shell script
 python == 3.7.0
 pytorch == 1.5.0
+yaml
+seaborn
+matplotlib
+pandas
 ```
 Please install required packages through ```pip install -r requirements.txt```
 
