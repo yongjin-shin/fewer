@@ -1,3 +1,4 @@
+
 from torch.utils.data import DataLoader
 import numpy as np
 import copy
@@ -53,18 +54,27 @@ class Server:
         if self.args.model == 'mlp':
             model = MLP(self.dataset_test['x'][0].shape.numel(), self.args.hidden,
                         torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
+            model_refer = MLP(self.dataset_test['x'][0].shape.numel(), self.args.hidden,
+                        torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
         elif self.args.model == 'mnistcnn':
             model = MnistCNN(1, torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
+            model_refer = MnistCNN(1, torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
         elif self.args.model == 'cifarcnn':
             model = CifarCnn(3, torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
+            model_refer = CifarCnn(3, torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
+
         elif self.args.model == 'testcnn':
             model = TestCNN(3 if 'cifar' in self.args.dataset else 1,
                             torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
+            model_refer = TestCNN(3 if 'cifar' in self.args.dataset else 1,
+                            torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
+
         else:
             raise NotImplementedError
 
         self.model = model
-        print(model)
+        self.model_reference = model_refer
+        # print(model)
 
     def train(self, exp_id=None):
         """Distribute, Train, Aggregation and Test"""
@@ -75,10 +85,11 @@ class Server:
             self.model, keeped_masks = self.pruning_handler.pruner(self.model, r)
 
             # distribution step
-            self.distribute_models(sampled_devices, self.model)
+            self.distribute_models(sampled_devices, self.model,self.args.model,self.model_reference)
             
             # client training & upload models
-            train_loss, updated_locals, recovery_signals = self.clients_training(sampled_devices, keeped_masks)
+
+            train_loss, updated_locals, recovery_signals = self.clients_training(sampled_devices, keeped_masks=keeped_masks,recovery=self.args.recovery,model=self.args.model)
             
             # recovery step
             self.pruning_handler.recoverer(self.model, recovery_signals, r)
@@ -92,7 +103,7 @@ class Server:
 
         return self.container
 
-    def clients_training(self, sampled_devices, keeped_masks=None):
+    def clients_training(self, sampled_devices, keeped_masks=None, recovery = False,model=None):
         """Local의 training 하나씩 실행함. multiprocessing은 구현하지 않았음."""
         updated_locals = []
         recovery_signals = []
@@ -102,21 +113,26 @@ class Server:
             if keeped_masks is not None:    
                 # get and apply pruned mask from global
                 self.pruning_handler.mask_adder(self.locals[i].model, keeped_masks)
-            
-            train_loss += self.locals[i].train()
-            
+
+            if recovery:
+                train_loss += self.locals[i].train_with_recovery()
+            else:
+                train_loss += self.locals[i].train()
             # merge mask of local (remove masks but pruned weights are still zero)
             self.pruning_handler.mask_merger(self.locals[i].model)
-            
-            updated_locals.append(self.locals[i].upload_model())
+
+            if recovery:
+                updated_locals.append(self.locals[i].upload_recovery_model())
+            else:
+                updated_locals.append(self.locals[i].upload_model())
             recovery_signals.append(self.locals[i].upload_recovery_signal())
 
         train_loss /= len(sampled_devices)
         return train_loss, updated_locals, recovery_signals
 
-    def distribute_models(self, sampled_devices, model):
+    def distribute_models(self, sampled_devices, model,model_name,model_reference):
         for i in sampled_devices:
-            self.locals[i].get_model(copy.deepcopy(model))
+            self.locals[i].get_model(copy.deepcopy(model),model_name,model_reference)
         # print(f"Devices will be training: {sampled_devices}")
 
     def aggregation_models(self, updated_locals):

@@ -1,3 +1,4 @@
+
 from pathlib import Path
 import numpy as np
 import random
@@ -12,7 +13,6 @@ from misc import save_results, fix_arguments
 # Ignore warnings
 import warnings
 warnings.filterwarnings('ignore')
-
 
 def single_experiment(args, i):
     print(f'======================{args.dataset} exp: {i + 1}====================')
@@ -34,7 +34,11 @@ def single_experiment(args, i):
 
 
 def main():
-    args = yaml.load(stream=open("config/config.yaml"), Loader=yaml.FullLoader)
+    try:
+        args = yaml.load(stream=open("config/config.yaml"), Loader=yaml.FullLoader)
+    except:
+        args = yaml.load(stream=open("config/config.yaml", 'rt', encoding='utf8'), Loader=yaml.FullLoader)
+
     args = fix_arguments(args)
     path = f'./log/{args.dataset}/ep{args.local_ep}'
     Path(path).mkdir(parents=True, exist_ok=True)
