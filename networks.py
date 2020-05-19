@@ -1,3 +1,4 @@
+import torchvision.models as _models
 import torch.nn as nn
 import torch
 
@@ -92,3 +93,106 @@ class TestCNN(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.fc(x)
         return self.LogSoftmax(x)
+
+
+# VGG 11-layer model
+class VGG(nn.Module):
+    def __init__(self, dim_in=3, dim_out=10, init_weights=True):
+        if dim_in == 1:
+            raise NotImplemented
+
+        super(VGG, self).__init__()
+        self.conv1 = nn.Conv2d(dim_in, 64, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
+        self.conv4 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
+        self.conv5 = nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1)
+        self.conv6 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1)
+        self.conv7 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1)
+        self.conv8 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1)
+        self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        self.avgpool = nn.AdaptiveAvgPool2d(output_size=(7, 7))
+        self.LogSoftmax = nn.LogSoftmax(dim=1)
+        self.relu = nn.ReLU()
+
+        self.fc1 = nn.Linear(in_features=25088, out_features=4096, bias=True)
+        self.fc2 = nn.Linear(in_features=4096, out_features=4096, bias=True)
+        self.fc3 = nn.Linear(in_features=4096, out_features=dim_out, bias=True)
+        self.dp = nn.Dropout(p=0.5, inplace=False)
+
+        if init_weights:
+            self._initialize_weights()
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x):
+        #       (0): Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        #       (1): ReLU(inplace=True)
+        #       (2): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        x = self.maxpool(self.relu(self.conv1(x)))
+
+        #       (3): Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        #       (4): ReLU(inplace=True)
+        #       (5): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        x = self.maxpool(self.relu(self.conv2(x)))
+
+        #       (6): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        #       (7): ReLU(inplace=True)
+        x = self.relu(self.conv3(x))
+
+        #       (8): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        #       (9): ReLU(inplace=True)
+        #       (10): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        x = self.maxpool(self.relu(self.conv4(x)))
+
+        #       (11): Conv2d(256, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        #       (12): ReLU(inplace=True)
+        x = self.relu(self.conv5(x))
+
+        #       (13): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        #       (14): ReLU(inplace=True)
+        #       (15): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        x = self.maxpool(self.relu(self.conv6(x)))
+
+        #       (16): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        #       (17): ReLU(inplace=True)
+        x = self.relu(self.conv7(x))
+
+        #       (18): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        #       (19): ReLU(inplace=True)
+        #       (20): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        x = self.maxpool(self.relu(self.conv8(x)))
+
+        #     (avgpool): AdaptiveAvgPool2d(output_size=(7, 7))
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+
+        #       (0): Linear(in_features=25088, out_features=4096, bias=True)
+        #       (1): ReLU(inplace=True)
+        #       (2): Dropout(p=0.5, inplace=False)
+        x = self.dp(self.relu(self.fc1(x)))
+
+        #       (3): Linear(in_features=4096, out_features=4096, bias=True)
+        #       (4): ReLU(inplace=True)
+        #       (5): Dropout(p=0.5, inplace=False)
+        x = self.dp(self.relu(self.fc2(x)))
+
+        #       (6): Linear(in_features=4096, out_features=10, bias=True)
+        x = self.fc3(x)
+        return self.LogSoftmax(x)
+
+
+class ResNet(nn.Module):
+    def __init__(self):
+        super(ResNet, self).__init__()

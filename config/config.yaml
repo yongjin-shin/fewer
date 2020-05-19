@@ -18,7 +18,7 @@ recovery_pack: []
 recovery_plan: []
 
 # model arguments
-model: 'testcnn' #mlp, mnistcnn, cifarcnn, testcnn
+model: 'vgg' #mlp, mnistcnn, cifarcnn, testcnn, vgg
 hidden: 256
 loss_func: 'CrossEntropy'
 lr: 0.01
@@ -27,7 +27,7 @@ momentum: 0.9
 weight_decay: 0  # 5e-4
 
 # dataset arguments
-dataset: 'mnist' # mnist, fmnist, cifar10
+dataset: 'cifar10' # mnist, fmnist, cifar10
 iid: False  # True, False
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 

@@ -6,7 +6,7 @@ import torch
 # Related Classes
 from local import Local
 from data import Mydataset
-from networks import MLP, MnistCNN, CifarCnn, TestCNN
+from networks import MLP, MnistCNN, CifarCnn, TestCNN, VGG
 from aggregation import get_aggregation_func
 from pruning import *
 
@@ -59,6 +59,9 @@ class Server:
             model = CifarCnn(3, torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
         elif self.args.model == 'testcnn':
             model = TestCNN(3 if 'cifar' in self.args.dataset else 1,
+                            torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
+        elif self.args.model == 'vgg':
+            model = VGG(3 if 'cifar' in self.args.dataset else 1,
                             torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
         else:
             raise NotImplementedError
