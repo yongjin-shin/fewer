@@ -1,6 +1,6 @@
 from pathlib import Path
 import torch
-from torchvision import datasets
+from torchvision import datasets, transforms
 from torch.utils.data import Dataset
 from collections import deque
 import numpy as np
@@ -51,10 +51,10 @@ class Preprocessor:
             test = {'x': dataset_test.test_data.to(self.args.device),
                     'y': dataset_test.test_labels.to(self.args.device)}
         elif 'cifar' in self.args.dataset:
-            train = {'x': torch.tensor(dataset_train.data).to(self.args.device),
-                     'y': torch.tensor(dataset_train.targets).to(self.args.device)}
-            test = {'x': torch.tensor(dataset_test.data).to(self.args.device),
-                    'y': torch.tensor(dataset_test.targets).to(self.args.device)}
+            train = {'x': dataset_train.data.to(self.args.device),
+                     'y': dataset_train.targets.to(self.args.device)}
+            test = {'x': dataset_test.data.to(self.args.device),
+                    'y': dataset_test.targets.to(self.args.device)}
         else:
             raise NotImplementedError
 
@@ -131,9 +131,9 @@ class Preprocessor:
 
     def download_dataset(self):
         print(f"Get data: {self.args.dataset}...")
-
         path = f'./dataset/{self.args.dataset}/'
         dataset_train, dataset_test = None, None
+
         if self.args.dataset == 'mnist':
             Path(path).mkdir(parents=True, exist_ok=True)
             dataset_train = datasets.MNIST(path, train=True, download=True)
@@ -143,10 +143,30 @@ class Preprocessor:
             dataset_train = datasets.FashionMNIST(path, train=True, download=True)
             dataset_test = datasets.FashionMNIST(path, train=False, download=True)
         elif self.args.dataset == 'cifar10':
+            train_transform, test_transform = self._data_argumentation()
             Path(path).mkdir(parents=True, exist_ok=True)
-            dataset_train = datasets.CIFAR10(path, train=True, download=True)
-            dataset_test = datasets.CIFAR10(path, train=False, download=True)
+            dataset_train = datasets.CIFAR10(path, train=True, transform=train_transform, download=True)
+            dataset_test = datasets.CIFAR10(path, train=False, transform=test_transform, download=True)
         else:
             exit('Error: unrecognized dataset')
 
         return dataset_train, dataset_test
+
+    def _data_argumentation(self):
+        mean = [0.4914, 0.4822, 0.4465]
+        stdv = [0.2023, 0.1994, 0.2010]
+        train_transform_list = [
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=stdv)
+        ]
+
+        train_transforms = transforms.Compose(train_transform_list)
+        test_transforms = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=stdv),
+        ])
+
+        return train_transforms, test_transforms
+
