@@ -6,7 +6,7 @@ local_ep: 5  # 로컬 모델 update 횟수
 local_bs: 50  # 로컬 Training Batch Size
 ratio_clients_per_round: 0.1  # 한 라운드에 몇 명에게 보낼까?
 aggregation_alg: 'fedavg' # aggregtion algorithm
-
+update_per_iter: 10 #update per iteration for recovery
 
 # fedPR arguments
 enable_pruning: True

@@ -16,7 +16,8 @@ class Server:
         """ N개의 Local은 여기서 만들어진다!!!"""
         # important variables
         self.args = args
-        self.locals = [Local(args=args, c_id=i) for i in range(self.args.nb_devices)]
+        self.update_per_iter= args.update_per_iter
+        self.locals = [Local(args=args, c_id=i, update_per_iter= self.update_per_iter) for i in range(self.args.nb_devices)]
         
         # pruning handler
         self.pruning_handler = PruningHandler(args)
@@ -115,7 +116,7 @@ class Server:
                 self.pruning_handler.mask_adder(self.locals[i].model, keeped_masks)
 
             if recovery:
-                train_loss += self.locals[i].train_with_recovery()
+                train_loss += self.locals[i].train_with_recovery(keeped_masks)
             else:
                 train_loss += self.locals[i].train()
             # merge mask of local (remove masks but pruned weights are still zero)

@@ -6,11 +6,11 @@ from torch.utils.data import DataLoader
 from networks import MLP, MnistCNN, CifarCnn, TestCNN
 
 class Local:
-    def __init__(self, args, c_id):
+    def __init__(self, args, c_id,update_per_iter):
         # important arguments
         self.c_id = c_id
         self.args = args
-
+        self.update_per_iter = update_per_iter
         # dataset
         self.data_loader = None
         self.dataset = None
@@ -46,30 +46,51 @@ class Local:
         return train_loss / ((ep+1) * (itr+1))
 
 
-    def train_with_recovery(self):
+    def train_with_recovery(self, keeped_masks):
         train_loss, itr, ep = 0, 0, 0
+        self.keeped_masks = keeped_masks
+        # for mask_param,dense_param in zip(self.model.named_parameters(),self.model_dense.named_parameters()):
+        #     print(mask_param[0])
+        #     print(dense_param[0])
+        #     print(mask_param[1].size())
+        #     print(dense_param[1].size())
+
+
+        '''get masked model for initial step, for now search mask fit to param by shape'''
+
+        for mask_param in self.model.parameters():
+            for keeped_mask in keeped_masks:
+                if mask_param.size() == keeped_masks[keeped_mask].size():
+                    mask_param = torch.mul(mask_param,keeped_masks[keeped_mask])
+
+
         for ep in range(self.args.local_ep):
-            # correct = 0
             for itr, (x, y) in enumerate(self.data_loader):
+
+                if itr % self.update_per_iter:
+                    '''mask dense model per update_per_itr'''
+                    for dense_param in self.model_dense.parameters():
+                        for keeped_mask in keeped_masks:
+                            if dense_param.size() == keeped_masks[keeped_mask].size():
+                                dense_param = torch.mul(dense_param, keeped_masks[keeped_mask])
+                    '''update masked dense model (m*w_{t+1}) to masked model (m*(w_{t}) '''
+                    self.model = copy.deepcopy(self.model_dense)
+
                 logprobs = self.model(x)
-                temp_probs = self.model_dense(x)
                 loss = self.loss_func(logprobs, y)
 
                 train_loss += loss
 
                 self.model.zero_grad()
                 self.model_dense.zero_grad()
+                '''get gradient of masked model'''
                 loss.backward()
 
-                # print('start')
-
+                '''deliver gradient of masked model parameter to dense model '''
                 for mask_param, dense_param in zip(self.model.parameters(),self.model_dense.parameters()):
-                    print('============================')
-                    print(dense_param.grad)
-                    dense_param.grad = mask_param.grad
-                    print(dense_param.grad)
-                    print('!!!!!!!!!!!!!!!!!!!!!!!!!')
-                # self.optim.step()
+                    dense_param.grad = copy.deepcopy(mask_param.grad)
+
+                '''update dense model from gradient of masked model'''
                 self.optim_dense.step()
 
         return train_loss / ((ep+1) * (itr+1))
@@ -88,43 +109,6 @@ class Local:
 
         import pickle
         self.model_dense = copy.deepcopy(pickle.loads(pickle.dumps(model)))
-
-        # self.model_dense = copy.deepcopy(model_reference)
-        #
-        # params1 = self.model.named_parameters()
-        # params2 = self.model_dense.named_parameters()
-        #
-        #
-        # import pickle
-        #
-        # for name1, param1 in params1:
-        #     print(name1)
-        #     for name2, param2 in params2:
-        #         print('==========')
-        #         print(name1)
-        #         print(name2)
-                # if name1 == name2:
-
-                    # param2.data.copy_(params)
-
-
-        # # model.attribute = list(model.attribute)
-        # self.model_dense  = copy.deepcopy(model_reference)
-        #
-
-        # dict_params2 = dict(params2)
-        #
-        # for name1, param1 in params1:
-        #     if name1 in dict_params2:
-        #         # print(name1)
-        #         dict_params2[name1].data.copy_(param1.data)
-
-
-        # self.model_dense= copy.deepcopy(model_reference)
-        # print(self.model.state_dict())
-        # self.model_dense.load_state_dict(torch.from_numpy(self.model.state_dict().cpu().numpy()))
-        # self.model_dense.load_state_dict(dict_params2)
-
 
         if 'sgd' == self.args.optimizer:
             self.optim = torch.optim.SGD(self.model.parameters(),
