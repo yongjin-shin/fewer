@@ -1,4 +1,4 @@
-
+import os
 from pathlib import Path
 import numpy as np
 import random
@@ -40,13 +40,15 @@ def main():
         args = yaml.load(stream=open("config/config.yaml", 'rt', encoding='utf8'), Loader=yaml.FullLoader)
 
     args = fix_arguments(args)
-    path = f'./log/{args.dataset}/ep{args.local_ep}'
+    path = f'./log/{args.dataset}/{args.experiment_name}'
     Path(path).mkdir(parents=True, exist_ok=True)
 
     # 반복실험을 합니다
     all_exps, idx = [], 0
     for i in range(args.nb_exp_reps):
-        all_exps.append(single_experiment(args, i))
+        container, model = single_experiment(args, i)
+        all_exps.append(container)
+        torch.save(model.state_dict(), os.path.join(path, 'model%d.h5'%i))
 
     # 결과를 저장합니다
     save_results(path, args, all_exps)

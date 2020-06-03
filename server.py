@@ -1,4 +1,3 @@
-
 from torch.utils.data import DataLoader
 import numpy as np
 import copy
@@ -16,8 +15,7 @@ class Server:
         """ N개의 Local은 여기서 만들어진다!!!"""
         # important variables
         self.args = args
-        self.update_per_iter= args.update_per_iter
-        self.locals = [Local(args=args, c_id=i, update_per_iter= self.update_per_iter) for i in range(self.args.nb_devices)]
+        self.locals = [Local(args=args, c_id=i) for i in range(self.args.nb_devices)]
         
         # pruning handler
         self.pruning_handler = PruningHandler(args)
@@ -80,60 +78,67 @@ class Server:
     def train(self, exp_id=None):
         """Distribute, Train, Aggregation and Test"""
         for r in range(self.args.nb_rounds):
+            print('==================================================')
+            print('Epoch [%d/%d]]'%(r+1, self.args.nb_rounds))
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
             
             # pruning step
             self.model, keeped_masks = self.pruning_handler.pruner(self.model, r)
 
             # distribution step
-            self.distribute_models(sampled_devices, self.model,self.args.model,self.model_reference)
-            
+            current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
+            print('Downloading Sparsity : %0.4f' % current_sparsity)
+            self.distribute_models(sampled_devices, self.model,self.args.model, self.model_reference)
+        
             # client training & upload models
-
-            train_loss, updated_locals, recovery_signals = self.clients_training(sampled_devices, keeped_masks=keeped_masks,recovery=self.args.recovery,model=self.args.model)
+            train_loss, updated_locals = self.clients_training(sampled_devices,
+                                                               keeped_masks=keeped_masks,
+                                                               recovery=self.args.recovery,
+                                                               model=self.args.model)
             
-            # recovery step
-            self.pruning_handler.recoverer(self.model, recovery_signals, r)
+            local_sparsity = []
+            for i in sampled_devices:
+                local_sparsity.append(self.pruning_handler.global_sparsity_evaluator(self.locals[i].model))
+            print('Avg Uploading Sparsity : %0.4f' % (round(sum(local_sparsity)/len(local_sparsity), 4)))
             
             # aggregation step
             self.aggregation_models(updated_locals)
+            current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
             
             # test & log results
             test_loss, test_acc = self.test()
             self.logging(train_loss.item(), test_loss, test_acc, r, exp_id)
+            print('==================================================')
+            
+        return self.container, self.model
 
-        return self.container
-
-    def clients_training(self, sampled_devices, keeped_masks=None, recovery = False,model=None):
+    def clients_training(self, sampled_devices, keeped_masks=None, recovery=False, model=None):
         """Local의 training 하나씩 실행함. multiprocessing은 구현하지 않았음."""
         updated_locals = []
-        recovery_signals = []
         train_loss = 0
 
         for i in sampled_devices:
-            if keeped_masks is not None:    
-                # get and apply pruned mask from global
-                self.pruning_handler.mask_adder(self.locals[i].model, keeped_masks)
-
             if recovery:
                 train_loss += self.locals[i].train_with_recovery(keeped_masks)
+                
             else:
+                if keeped_masks is not None:    
+                    # get and apply pruned mask from global
+                    mask_adder(self.locals[i].model, keeped_masks)
+                    
                 train_loss += self.locals[i].train()
-            # merge mask of local (remove masks but pruned weights are still zero)
-            self.pruning_handler.mask_merger(self.locals[i].model)
-
-            if recovery:
-                updated_locals.append(self.locals[i].upload_recovery_model())
-            else:
-                updated_locals.append(self.locals[i].upload_model())
-            recovery_signals.append(self.locals[i].upload_recovery_signal())
+            
+                # merge mask of local (remove masks but pruned weights are still zero)
+                mask_merger(self.locals[i].model)    
+            
+            updated_locals.append(self.locals[i].upload_model())
 
         train_loss /= len(sampled_devices)
-        return train_loss, updated_locals, recovery_signals
-
-    def distribute_models(self, sampled_devices, model,model_name,model_reference):
+        return train_loss, updated_locals
+    
+    def distribute_models(self, sampled_devices, model, model_name, model_reference):
         for i in sampled_devices:
-            self.locals[i].get_model(copy.deepcopy(model),model_name,model_reference)
+            self.locals[i].get_model(copy.deepcopy(model), model_name, model_reference)
         # print(f"Devices will be training: {sampled_devices}")
 
     def aggregation_models(self, updated_locals):
@@ -148,14 +153,11 @@ class Server:
             test_loss += self.loss_func(logprobs, y).item()
             y_pred = torch.argmax(torch.exp(logprobs), dim=1)
             correct += torch.sum(y_pred.view(-1) == y.view(-1)).cpu().item()
-            
-        current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
-        print('Current Sparsity: %0.4f' % current_sparsity)
 
         self.model.train()
         return test_loss / (itr + 1), 100 * float(correct) / float(len(self.dataset_test['y']))
 
     def logging(self, train_loss, test_loss, test_acc, r, exp_id=None):
         self.container.append([train_loss, test_loss, test_acc, r, exp_id])
-        print(f"{r}th round | Train loss: {train_loss:.3f} Test loss: {test_loss:.3f} | acc: {test_acc:.3f} ")
+        print(f"Train loss: {train_loss:.3f} Test loss: {test_loss:.3f} | acc: {test_acc:.3f}")
 
