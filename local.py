@@ -1,6 +1,5 @@
 import copy
 import torch
-from data import Mydataset
 from torch.utils.data import DataLoader
 
 
@@ -13,7 +12,6 @@ class Local:
         # dataset
         self.data_loader = None
         self.dataset = None
-        self.nb_unique_label = 0
 
         # model & optimizer
         self.model = None
@@ -28,8 +26,8 @@ class Local:
         for ep in range(self.args.local_ep):
             # correct = 0
             for itr, (x, y) in enumerate(self.data_loader):
-                logprobs = self.model(x)
-                loss = self.loss_func(logprobs, y)
+                logprobs = self.model(x.to(self.args.device))
+                loss = self.loss_func(logprobs, y.to(self.args.device))
 
                 # y_pred = torch.argmax(torch.exp(logprobs), dim=1)
                 # correct += torch.sum(y_pred.view(-1) == y.view(-1)).cpu().item()
@@ -44,12 +42,9 @@ class Local:
     
     def get_dataset(self, dataset):
         self.dataset = dataset
-        self.data_loader = DataLoader(Mydataset(self.dataset, self.args), batch_size=self.args.local_bs, shuffle=True)
-        if len(dataset['y']) <= 0:
+        self.data_loader = DataLoader(self.dataset, batch_size=self.args.local_bs, shuffle=True)
+        if self.dataset.__len__() <= 0:
             raise RuntimeError
-
-    def set_unique(self, nb_unique):
-        self.nb_unique_label = nb_unique
 
     def get_model(self, model):
         self.model = copy.deepcopy(model)

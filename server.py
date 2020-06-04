@@ -5,10 +5,12 @@ import torch
 
 # Related Classes
 from local import Local
-from data import Mydataset
 from networks import MLP, MnistCNN, CifarCnn, TestCNN, VGG
 from aggregation import get_aggregation_func
 from pruning import *
+
+# from pynvml import *
+
 
 class Server:
     def __init__(self, args):
@@ -40,29 +42,25 @@ class Server:
         """raw data를 받아와서 server와 local에 데이터를 분배함"""
         self.dataset_train, self.dataset_test = dataset_server, dataset_test
 
-        dataset_test = Mydataset(self.dataset_test, self.args)
-        self.test_loader = DataLoader(dataset_test, batch_size=100, shuffle=True)
-        self.nb_unique_label = dataset_test.unique()
-
+        self.test_loader = DataLoader(self.dataset_test, batch_size=100, shuffle=True)
         for i in range(self.args.nb_devices):
             """set unique must be prior to get_dataset"""
-            self.locals[i].set_unique(self.nb_unique_label)
             self.locals[i].get_dataset(dataset_locals[i])
 
     def make_model(self):
         if self.args.model == 'mlp':
             model = MLP(self.dataset_test['x'][0].shape.numel(), self.args.hidden,
-                        torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
+                        torch.unique(self.dataset_test.targets).numel()).to(self.args.device)
         elif self.args.model == 'mnistcnn':
-            model = MnistCNN(1, torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
+            model = MnistCNN(1, torch.unique(self.dataset_test.targets).numel()).to(self.args.device)
         elif self.args.model == 'cifarcnn':
-            model = CifarCnn(3, torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
+            model = CifarCnn(3, torch.unique(self.dataset_test.targets).numel()).to(self.args.device)
         elif self.args.model == 'testcnn':
             model = TestCNN(3 if 'cifar' in self.args.dataset else 1,
-                            torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
+                            torch.unique(self.dataset_test.targets).numel()).to(self.args.device)
         elif self.args.model == 'vgg':
             model = VGG(3 if 'cifar' in self.args.dataset else 1,
-                            torch.unique(self.dataset_test['y']).numel()).to(self.args.device)
+                        torch.unique(self.dataset_test.targets).numel()).to(self.args.device)
         else:
             raise NotImplementedError
 
@@ -77,12 +75,13 @@ class Server:
             # pruning step
             self.model, keeped_masks = self.pruning_handler.pruner(self.model, r)
 
+            print(f"{r}")
             # distribution step
             self.distribute_models(sampled_devices, self.model)
-            
+
             # client training & upload models
             train_loss, updated_locals, recovery_signals = self.clients_training(sampled_devices, keeped_masks)
-            
+
             # recovery step
             self.pruning_handler.recoverer(self.model, recovery_signals, r)
             
@@ -120,6 +119,13 @@ class Server:
     def distribute_models(self, sampled_devices, model):
         for i in sampled_devices:
             self.locals[i].get_model(copy.deepcopy(model))
+            print(f"\t{i}")
+            # nvmlInit()
+            # h = nvmlDeviceGetHandleByIndex(0)
+            # info = nvmlDeviceGetMemoryInfo(h)
+            # print(f'total    : {info.total}')
+            # print(f'free     : {info.free}')
+            # print(f'used     : {info.used}')
         # print(f"Devices will be training: {sampled_devices}")
 
     def aggregation_models(self, updated_locals):
@@ -130,16 +136,16 @@ class Server:
         self.model.eval()
         test_loss, correct, itr = 0, 0, 0
         for itr, (x, y) in enumerate(self.test_loader):
-            logprobs = self.model(x)
-            test_loss += self.loss_func(logprobs, y).item()
+            logprobs = self.model(x.to(self.args.device))
+            test_loss += self.loss_func(logprobs, y.to(self.args.device)).item()
             y_pred = torch.argmax(torch.exp(logprobs), dim=1)
-            correct += torch.sum(y_pred.view(-1) == y.view(-1)).cpu().item()
+            correct += torch.sum(y_pred.view(-1) == y.to(self.args.device).view(-1)).cpu().item()
             
         current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
         print('Current Sparsity: %0.4f' % current_sparsity)
 
         self.model.train()
-        return test_loss / (itr + 1), 100 * float(correct) / float(len(self.dataset_test['y']))
+        return test_loss / (itr + 1), 100 * float(correct) / float(self.dataset_test.__len__())
 
     def logging(self, train_loss, test_loss, test_acc, r, exp_id=None):
         self.container.append([train_loss, test_loss, test_acc, r, exp_id])

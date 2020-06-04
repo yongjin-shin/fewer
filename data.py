@@ -1,40 +1,8 @@
 from pathlib import Path
-import torch
 from torchvision import datasets, transforms
-from torch.utils.data import Dataset
+from torch.utils.data import Subset
 from collections import deque
 import numpy as np
-
-
-class Mydataset(Dataset):
-    def __init__(self, dataset, args):
-        self.args = args
-        self.x = dataset['x']
-        self.y = dataset['y']
-
-        if 'cnn' in self.args.model:
-            if 'mnist' in self.args.dataset:
-                self.x = self.x.reshape((-1, 1, 28, 28))
-            elif 'cifar' in self.args.dataset:
-                self.x = self.x.permute(0, 3, 1, 2)
-            else:
-                raise NotImplementedError
-
-        self.std, self.mean = torch.std_mean(self.x.float())
-
-    def unique(self):
-        return len(torch.unique(self.y))
-
-    def __len__(self):
-        return len(self.x)
-
-    def __getitem__(self, idx):
-        return (self.x[idx] - self.mean)/self.std, self.y[idx]
-
-
-def get_simple_dataset():
-    """기본 데이터셋 구조"""
-    return {'x': [], 'y': []}
 
 
 class Preprocessor:
@@ -45,57 +13,61 @@ class Preprocessor:
         """ 서버에게 Train, Test 데이터 전달함 """
 
         dataset_train, dataset_test = self.download_dataset()
-        if 'mnist' in self.args.dataset:
-            train = {'x': dataset_train.train_data.to(self.args.device),
-                     'y': dataset_train.train_labels.to(self.args.device)}
-            test = {'x': dataset_test.test_data.to(self.args.device),
-                    'y': dataset_test.test_labels.to(self.args.device)}
-        elif 'cifar' in self.args.dataset:
-            train = {'x': dataset_train.data.to(self.args.device),
-                     'y': dataset_train.targets.to(self.args.device)}
-            test = {'x': dataset_test.data.to(self.args.device),
-                    'y': dataset_test.targets.to(self.args.device)}
+        dataset_server, dataset_locals = self.make_data_for_local_and_server(dataset_train)
+        server.get_data(dataset_server, dataset_locals, dataset_test)
+
+    def download_dataset(self):
+        print(f"Get data: {self.args.dataset}...")
+        path = f'./dataset/{self.args.dataset}/'
+        dataset_train, dataset_test = None, None
+
+        if self.args.dataset == 'mnist':
+            train_transform, test_transform = self.mnist_data_augmentation()
+            Path(path).mkdir(parents=True, exist_ok=True)
+            dataset_train = datasets.MNIST(path, train=True, transform=train_transform, download=True)
+            dataset_test = datasets.MNIST(path, train=False, transform=test_transform, download=True)
+        elif self.args.dataset == 'fmnist':
+            train_transform, test_transform = self.fashion_mnist_data_augmentation()
+            Path(path).mkdir(parents=True, exist_ok=True)
+            dataset_train = datasets.FashionMNIST(path, train=True, download=True)
+            dataset_test = datasets.FashionMNIST(path, train=False, download=True)
+        elif self.args.dataset == 'cifar10':
+            train_transform, test_transform = self.cifar_data_augmentation()
+            Path(path).mkdir(parents=True, exist_ok=True)
+            dataset_train = datasets.CIFAR10(path, train=True, transform=train_transform, download=True)
+            dataset_test = datasets.CIFAR10(path, train=False, transform=test_transform, download=True)
         else:
-            raise NotImplementedError
+            exit('Error: unrecognized dataset')
 
-        dataset_server, dataset_locals = self.make_data_for_local_and_server(train)
-        server.get_data(dataset_server, dataset_locals, test)
+        return dataset_train, dataset_test
 
-    def make_data_for_local_and_server(self, train):
+    def make_data_for_local_and_server(self, dataset_train):
         """서버와 데이터에게 얼마나 데이터 분배할지 결정. Train 데이터만 사용한다"""
 
+        # non iid 데이터를 만들어준다
+        server_idx, locals_idx = self.make_non_iid(dataset_train.targets)
+
         # 서버의 데이터
-        len_data_server = self.args.nb_server_data
-        data_server = {'x': train['x'][:len_data_server],
-                       'y': train['y'][:len_data_server]} if len_data_server > 0 else get_simple_dataset()
+        dataset_server = Subset(dataset_train, server_idx)
 
         # 로컬의 데이터
-        tot_len_data_local = (len(train['x']) - len_data_server)
-        data_locals = self.split_data_for_locals(tot_len_data_local, train)
+        datasets_local = []
+
+        for i in range(self.args.nb_devices):
+            local_idx = locals_idx.pop()
+            datasets_local.append(Subset(dataset_train, local_idx))
 
         print(f"\nDataset Length\n"
-              f" Center length: {len(data_server['y'])}\n"
-              f" Local length: {len(data_locals[0]['y'])} x {len(data_locals)}\n")
-        return data_server, data_locals
+              f" Center length: {dataset_server.__len__()}\n"
+              f" Local length: {len(datasets_local)} x {datasets_local[0].__len__()}\n")
+        return dataset_server, datasets_local
 
-    def split_data_for_locals(self, tot_len_data_local, train):
-        data_locals = []
-        len_data_local = int(tot_len_data_local / self.args.nb_devices)  # e.g. 600 = 60,000 / 100
-
-        # non iid 데이터를 만들어준다
-        distributed_idx = self.make_non_iid(train['y'].cpu().numpy(), len_data_local)
-        for i in range(self.args.nb_devices):
-            local_idx = distributed_idx.pop()
-            data_locals.append({'x': train['x'][local_idx], 'y': train['y'][local_idx]})
-            # print(torch.unique(train['y'][local_idx]))
-        return data_locals
-
-    def make_non_iid(self, label, length):
+    def make_non_iid(self, labels):
+        length = int((len(labels) - self.args.nb_server_data) / self.args.nb_devices)
         idx = []
-
         # non-iid로 만들 필요가 없는 경우
         if self.args.iid or self.args.nb_devices == 1:
-            tot_idx = np.arange(len(label))
+            tot_idx = np.arange(len(labels))
             for _ in range(self.args.nb_devices):
                 idx.append(tot_idx[:length])
                 tot_idx = tot_idx[length:]
@@ -105,15 +77,17 @@ class Preprocessor:
             # 하나의 local은 nb_max_classes만큼 unique한 class를 가져갈 거임
             # 다만, 각 class의 개수는 num_shards만큼 동일함.
             shard_size = int(length / self.args.nb_max_classes)  # e.g. 300 = 600 / 2
-            unique_classes = np.unique(label)
+            unique_classes = np.unique(labels)
 
             tot_idx_by_label = []  # shape: class x num_shards x shard_size
             for i in unique_classes:
-                idx_by_label = np.where(label == i)[0]
+                idx_by_label = np.where(labels == i)[0]
                 tmp = []
-                while len(idx_by_label) > 0:
+                while 1:
                     tmp.append(idx_by_label[:shard_size])
                     idx_by_label = idx_by_label[shard_size:]
+                    if len(idx_by_label) < shard_size/2:
+                        break
                 tot_idx_by_label.append(tmp)
 
             # 각 client 별로 randomly 각기 다른 class를 뽑음
@@ -127,32 +101,44 @@ class Preprocessor:
                         del tot_idx_by_label[chosen_label][l_idx]  # 뽑힌 shard의 원본은 제거!
                 idx.append(np.concatenate(idx_by_devices))
 
-        return deque(idx)
+        remained_idx = set(np.arange(len(labels))) - set(np.concatenate(idx))
+        server_idx = np.random.choice(list(remained_idx), size=self.args.nb_server_data)
 
-    def download_dataset(self):
-        print(f"Get data: {self.args.dataset}...")
-        path = f'./dataset/{self.args.dataset}/'
-        dataset_train, dataset_test = None, None
+        return server_idx, deque(idx)
 
-        if self.args.dataset == 'mnist':
-            Path(path).mkdir(parents=True, exist_ok=True)
-            dataset_train = datasets.MNIST(path, train=True, download=True)
-            dataset_test = datasets.MNIST(path, train=False, download=True)
-        elif self.args.dataset == 'fmnist':
-            Path(path).mkdir(parents=True, exist_ok=True)
-            dataset_train = datasets.FashionMNIST(path, train=True, download=True)
-            dataset_test = datasets.FashionMNIST(path, train=False, download=True)
-        elif self.args.dataset == 'cifar10':
-            train_transform, test_transform = self._data_argumentation()
-            Path(path).mkdir(parents=True, exist_ok=True)
-            dataset_train = datasets.CIFAR10(path, train=True, transform=train_transform, download=True)
-            dataset_test = datasets.CIFAR10(path, train=False, transform=test_transform, download=True)
-        else:
-            exit('Error: unrecognized dataset')
+    def mnist_data_augmentation(self):
+        mean = [0.1307]
+        stdv = [0.3081]
+        train_transform_list = [
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=stdv)
+        ]
 
-        return dataset_train, dataset_test
+        train_transforms = transforms.Compose(train_transform_list)
+        test_transforms = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=stdv),
+        ])
 
-    def _data_argumentation(self):
+        return train_transforms, test_transforms
+
+    def fashion_mnist_data_augmentation(self):
+        mean = [0.5]
+        stdv = [0.5]
+        train_transform_list = [
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=stdv)
+        ]
+
+        train_transforms = transforms.Compose(train_transform_list)
+        test_transforms = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=stdv),
+        ])
+
+        return train_transforms, test_transforms
+
+    def cifar_data_augmentation(self):
         mean = [0.4914, 0.4822, 0.4465]
         stdv = [0.2023, 0.1994, 0.2010]
         train_transform_list = [
@@ -169,4 +155,3 @@ class Preprocessor:
         ])
 
         return train_transforms, test_transforms
-
