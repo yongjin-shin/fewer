@@ -29,7 +29,7 @@ recovery: True
 
 
 # dataset arguments
-dataset: 'mnist' # mnist, fmnist, cifar10
+dataset: 'cifar10' # mnist, fmnist, cifar10
 iid: False  # True, False
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
