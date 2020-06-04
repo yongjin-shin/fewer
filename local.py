@@ -1,8 +1,8 @@
-
 import copy
 import torch
 from torch.utils.data import DataLoader
 from networks import MLP, MnistCNN, CifarCnn, TestCNN
+
 
 class Local:
     def __init__(self, args, c_id,update_per_iter):
@@ -43,7 +43,6 @@ class Local:
             # print(f"{self.c_id}th Client | Train loss: {train_loss / (itr + 1):.3f} | Train Acc: {correct * 100 / len(self.dataset['y']):.3f}@ {ep}")
         return train_loss / ((ep+1) * (itr+1))
 
-
     def train_with_recovery(self, keeped_masks):
         train_loss, itr, ep = 0, 0, 0
         self.keeped_masks = keeped_masks
@@ -74,8 +73,8 @@ class Local:
                     '''update masked dense model (m*w_{t+1}) to masked model (m*(w_{t}) '''
                     self.model = copy.deepcopy(self.model_dense)
 
-                logprobs = self.model(x)
-                loss = self.loss_func(logprobs, y)
+                logprobs = self.model(x.to(self.args.device))
+                loss = self.loss_func(logprobs, y.to(self.args.device))
 
                 train_loss += loss
 
@@ -85,7 +84,7 @@ class Local:
                 loss.backward()
 
                 '''deliver gradient of masked model parameter to dense model '''
-                for mask_param, dense_param in zip(self.model.parameters(),self.model_dense.parameters()):
+                for mask_param, dense_param in zip(self.model.parameters(), self.model_dense.parameters()):
                     dense_param.grad = copy.deepcopy(mask_param.grad)
 
                 '''update dense model from gradient of masked model'''
@@ -99,7 +98,7 @@ class Local:
         if self.dataset.__len__() <= 0:
             raise RuntimeError
 
-    def get_model(self, model):
+    def get_model(self, model, model_name, model_reference):
         self.model = copy.deepcopy(model)
 
         import pickle

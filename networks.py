@@ -14,7 +14,7 @@ class MLP(nn.Module):
         print("\nMLP was made")
 
     def forward(self, x):
-        x = x.view(-1, x.shape[1]*x.shape[-1])
+        x = x.view((x.size()[0], -1))
         x = self.fc1(x)
         x = self.dropout(x)
         x = self.elu(x)
