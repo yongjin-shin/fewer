@@ -18,8 +18,8 @@ class MLP(nn.Module):
         x = self.fc1(x)
         x = self.dropout(x)
         x = self.elu(x)
-        x = self.fc2(x)
-        return self.LogSoftmax(x)
+        x = self.LogSoftmax(self.fc2(x))
+        return x
 
 
 # Exactly same model for FedAvg
@@ -42,7 +42,7 @@ class MnistCNN(nn.Module):
         x = torch.flatten(x, 1)
         x = self.relu(self.fc1(x))
         x = self.LogSoftmax(self.fc2(x))
-        return self.LogSoftmax(x)
+        return x
 
 
 class CifarCnn(nn.Module):
@@ -91,8 +91,8 @@ class TestCNN(nn.Module):
         x = self.elu(self.conv4(x))
         x = self.globalpool(x)
         x = x.view(x.size(0), -1)
-        x = self.fc(x)
-        return self.LogSoftmax(x)
+        x = self.LogSoftmax(self.fc(x))
+        return x
 
 
 # VGG 11-layer model
@@ -189,8 +189,8 @@ class VGG(nn.Module):
         x = self.dp(self.relu(self.fc2(x)))
 
         #       (6): Linear(in_features=4096, out_features=10, bias=True)
-        x = self.fc3(x)
-        return self.LogSoftmax(x)
+        x = self.LogSoftmax(self.fc3(x))
+        return x
 
 
 class ResNet(nn.Module):

@@ -34,7 +34,11 @@ def plot_graph(args, data, path):
     cols = ['loss_train', 'loss_test', 'acc_test', 'round', 'exp']
     df = pd.DataFrame(data, columns=cols)
     for c in cols[:-2]:
-        sns.lineplot(x='round', y=c, data=df)
+        plt.plot(df['round'], df[c])
+        if 'acc' in c:
+            plt.ylim(60,100)
+        elif 'loss' in c:
+            plt.ylim(0,0.3)
         plt.title(f'Dataset: {args.dataset} | {c}')
         plt.savefig(f'{path}/data_{args.dataset}_{c}.png')
         print(f"saved {path}/data_{args.dataset}_{c}.png")
