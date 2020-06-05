@@ -49,9 +49,10 @@ class Local:
                 self.optim.zero_grad()
                 
                 # w_tilda <- mask * w_dense
-                masked_model = copy.deepcopy(self.model)
-                mask_adder(masked_model, keeped_masks)
-                mask_merger(masked_model)
+                with torch.no_grad():
+                    masked_model = copy.deepcopy(self.model)
+                    mask_adder(masked_model, keeped_masks)
+                    mask_merger(masked_model)
 
                 # compute gradient from w_tilda
                 logprobs = masked_model(x)

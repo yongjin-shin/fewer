@@ -16,8 +16,7 @@ class PruningHandler():
         (default setting) : globally prune with L1 norm & no recovery
         """
         # Specify pruning & recovery plan for each round
-        self.pruning_plan = self._planner(args)
-        self.base_sparsity = 0
+        self.pruning_plan, self.base_sparsity = self._planner(args)
         
         # Set pruning options
         self.globally = globally
@@ -84,21 +83,21 @@ class PruningHandler():
 
         amount = 0
         target_amount = self.pruning_plan[fed_round]
-        self.base_sparsity += target_amount
+        amount = min(self.base_sparsity[fed_round] + target_amount, 0.999)
 
-        amount = min(self.base_sparsity + target_amount, 0.999)
-        
         return amount
     
     def _planner(self, args):        
-        if args.enable_pruning:
+        if args.pruning:
             assert sum(args.pruning_plan) == args.nb_rounds,\
             'plan should should be same with nb_rounds!'
             
             pruning_plan = list_organizer(args.pruning_pack,
                                   args.pruning_plan)
+            
         else:
-            pruning_plan  [0] * args.nb_rounds
+            pruning_plan = [0] * args.nb_rounds
 
+        base_sparsity = base_organizer(pruning_plan)
         
-        return pruning_plan
+        return pruning_plan, base_sparsity

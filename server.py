@@ -82,9 +82,9 @@ class Server:
             print('Epoch [%d/%d]]'%(r+1, self.args.nb_rounds))
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
             
-            # pruning step
+            # global pruning step
             self.model, keeped_masks = self.pruning_handler.pruner(self.model, r)
-
+            
             # distribution step
             current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
             print('Downloading Sparsity : %0.4f' % current_sparsity)
@@ -98,6 +98,7 @@ class Server:
             
             local_sparsity = []
             for i in sampled_devices:
+                _, keeped_local_mask = self.pruning_handler.pruner(self.locals[i].model, r)
                 local_sparsity.append(self.pruning_handler.global_sparsity_evaluator(self.locals[i].model))
             print('Avg Uploading Sparsity : %0.4f' % (round(sum(local_sparsity)/len(local_sparsity), 4)))
             
