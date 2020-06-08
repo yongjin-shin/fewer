@@ -54,14 +54,6 @@ class Local:
 
                 # deliver gradients from w_tilda to w_dense
                 for dense_param, mask_param in zip(self.model.parameters(), masked_model.parameters()):
-                    print(dense_param.device)
-                    print(mask_param.device)
-                    print(dense_param.shape)
-                    print(dense_param.grad.data.shape)
-                    print(mask_param.shape)
-                    print(mask_param.grad.data.shape)
-                    print(dense_param.grad)
-                    print(mask_param.grad)
                     dense_param.grad = mask_param.grad
                 
                 # update w_dense weights
