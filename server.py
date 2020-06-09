@@ -84,7 +84,7 @@ class Server:
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
             
             # global pruning step
-            self.model, keeped_masks = self.pruning_handler.pruner(self.model, r)
+            #self.model, keeped_masks = self.pruning_handler.pruner(self.model, r)
             
             # distribution step
             current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
@@ -93,11 +93,10 @@ class Server:
         
             # client training & upload models
             train_loss, updated_locals = self.clients_training(sampled_devices,
-                                                               keeped_masks=keeped_masks,
+                                                               keeped_masks=None,
                                                                recovery=self.args.recovery,
                                                                model=self.args.model)
-            
-            # # recovery step
+            # recovery step
             local_sparsity = []
             for i in sampled_devices:
                 _, keeped_local_mask = self.pruning_handler.pruner(self.locals[i].model, r)
@@ -106,7 +105,11 @@ class Server:
 
             # aggregation step
             self.aggregation_models(updated_locals)
+            
+            # global pruning step
+            self.model, _ = self.pruning_handler.pruner(self.model, r)
             current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
+            print('Pruned Global Model Sparsity: %0.4f' % current_sparsity)
             
             # test & log results
             test_loss, test_acc = self.test()
