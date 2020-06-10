@@ -17,9 +17,6 @@ def fix_arguments(args):
     else:
         args.device = torch.device("cpu")
 
-    for k in sorted(vars(args).keys()):
-        print("{}: {}".format(k, vars(args)[k]))
-
     return args
 
 

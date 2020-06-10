@@ -9,17 +9,19 @@ from aggregation import get_aggregation_func
 from pruning import *
 from networks import create_nets
 from misc import model_location_switch_downloading, mask_location_switch
+from logger import Results
 import gc
 
 # from pynvml import *
 
 
 class Server:
-    def __init__(self, args):
+    def __init__(self, args, logger):
 
         # important variables
         self.args = args
         self.locals = Local(args=args)
+        self.logger = logger
         
         # pruning handler
         self.pruning_handler = PruningHandler(args)
@@ -32,6 +34,9 @@ class Server:
 
         # about model
         self.model = None
+        self.make_model()
+
+        # about optimization
         self.loss_func = torch.nn.NLLLoss(reduction='mean')
         self.aggregate_model_func = get_aggregation_func(self.args.aggregation_alg)
 
@@ -50,7 +55,7 @@ class Server:
         #     self.locals[i].get_dataset(dataset_locals[i])
 
     def make_model(self):
-        model = create_nets(self.args)
+        model = create_nets(self.args, 'SERVER')
 
         if self.args.server_location == 'gpu':
             if self.args.gpu:
@@ -68,12 +73,12 @@ class Server:
         """Distribute, Train, Aggregation and Test"""
         for r in range(self.args.nb_rounds):
             print('==================================================')
-            print('Epoch [%d/%d]' % (r+1, self.args.nb_rounds))
+            print(f'Epoch [{r+1}/{self.args.nb_rounds}]')
 
             # global pruning step
             self.model, keeped_masks = self.pruning_handler.pruner(self.model, r)
             current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
-            print('Downloading Sparsity : %0.4f' % current_sparsity)
+            print(f'Downloading Sparsity : {current_sparsity:.4f}')
 
             # Sample Clients
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
@@ -88,11 +93,11 @@ class Server:
                                                                recovery=self.args.recovery)
             
             # # recovery step
-            # local_sparsity = []
-            # for i in sampled_devices:
-            #     _, keeped_local_mask = self.pruning_handler.pruner(self.locals[i].model, r)
-            #     local_sparsity.append(self.pruning_handler.global_sparsity_evaluator(self.locals[i].model))
-            # print('Avg Uploading Sparsity : %0.4f' % (round(sum(local_sparsity)/len(local_sparsity), 4)))
+            local_sparsity = []
+            for i in sampled_devices:
+                # _, keeped_local_mask = self.pruning_handler.pruner(self.locals[i].model, r)
+                local_sparsity.append(self.pruning_handler.global_sparsity_evaluator(self.locals.model))
+            print(f'Avg Uploading Sparsity : {round(sum(local_sparsity)/len(local_sparsity), 4):.4f}')
 
             # aggregation step
             self.aggregation_models(updated_locals)
@@ -100,7 +105,7 @@ class Server:
             
             # test & log results
             test_loss, test_acc = self.test()
-            self.logging(train_loss.item(), test_loss, test_acc, r, exp_id)
+            self.logger.get_results(Results(train_loss.item(), test_loss, test_acc, current_sparsity*100, r, exp_id))
             print('==================================================')
             
         return self.container, self.model
@@ -159,7 +164,7 @@ class Server:
         self.model.to(self.args.server_location).train()
         return test_loss / (itr + 1), 100 * float(correct) / float(self.len_test_data)
 
-    def logging(self, train_loss, test_loss, test_acc, r, exp_id=None):
-        self.container.append([train_loss, test_loss, test_acc, r, exp_id])
-        print(f"Train loss: {train_loss:.3f} Test loss: {test_loss:.3f} | acc: {test_acc:.3f}")
+    def get_global_model(self):
+        return self.model
+
 

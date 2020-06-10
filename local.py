@@ -12,7 +12,7 @@ class Local:
         self.data_loader = None
 
         # model & optimizer
-        self.model = create_nets(self.args).to(self.args.device)
+        self.model = create_nets(self.args, 'LOCAL').to(self.args.device)
         self.optim = None
         self.loss_func = torch.nn.NLLLoss(reduction='mean')
 
