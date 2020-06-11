@@ -78,13 +78,17 @@ class Server:
 
     def train(self, exp_id=None):
         """Distribute, Train, Aggregation and Test"""
+        
+        global_mask = None # initialize global mask as None
+
         for r in range(self.args.nb_rounds):
             print('==================================================')
             print('Epoch [%d/%d]'%(r+1, self.args.nb_rounds))
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
             
             # global pruning step
-            #self.model, keeped_masks = self.pruning_handler.pruner(self.model, r)
+            if self.args.pruning_type == 'server_pruning':
+                self.model, global_mask = self.pruning_handler.pruner(self.model, r)
             
             # distribution step
             current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
@@ -93,10 +97,10 @@ class Server:
         
             # client training & upload models
             train_loss, updated_locals = self.clients_training(sampled_devices,
-                                                               keeped_masks=None,
+                                                               keeped_masks=global_mask,
                                                                recovery=self.args.recovery,
                                                                model=self.args.model)
-            # recovery step
+            # local pruning step
             local_sparsity = []
             for i in sampled_devices:
                 _, keeped_local_mask = self.pruning_handler.pruner(self.locals[i].model, r)
@@ -107,9 +111,10 @@ class Server:
             self.aggregation_models(updated_locals)
             
             # global pruning step
-            self.model, _ = self.pruning_handler.pruner(self.model, r)
-            current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
-            print('Pruned Global Model Sparsity: %0.4f' % current_sparsity)
+            if self.args.pruning_type == 'local_pruning':
+                self.model, global_mask = self.pruning_handler.pruner(self.model, r)
+                current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
+                #print('Pruned Global Model Sparsity: %0.4f' % current_sparsity)
             
             # test & log results
             test_loss, test_acc = self.test()
@@ -126,7 +131,7 @@ class Server:
         for i in sampled_devices:
             if recovery:
                 train_loss += self.locals[i].train_with_recovery(keeped_masks)
-                
+
             else:
                 if keeped_masks is not None:    
                     # get and apply pruned mask from global
