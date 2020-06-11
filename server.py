@@ -5,30 +5,38 @@ import torch
 
 # Related Classes
 from local import Local
-from networks import MLP, MnistCNN, CifarCnn, TestCNN, VGG
 from aggregation import get_aggregation_func
 from pruning import *
+from networks import create_nets
+from misc import model_location_switch_downloading, mask_location_switch
+from logger import Results
+import gc
 
 # from pynvml import *
 
 
 class Server:
-    def __init__(self, args):
-        """ N개의 Local은 여기서 만들어진다!!!"""
+    def __init__(self, args, logger):
+
         # important variables
         self.args = args
-        self.locals = [Local(args=args, c_id=i) for i in range(self.args.nb_devices)]
+        self.locals = Local(args=args)
+        self.logger = logger
         
         # pruning handler
         self.pruning_handler = PruningHandler(args)
         self.sparsity = 0
         
         # dataset
-        self.dataset_train, self.dataset_test = None, None
+        self.dataset_train, self.dataset_locals = None, None
+        self.len_test_data = 0
         self.test_loader = None
 
         # about model
-        self.model, self.model_reference = None, None
+        self.model = None
+        self.make_model()
+
+        # about optimization
         self.loss_func = torch.nn.NLLLoss(reduction='mean')
         self.aggregate_model_func = get_aggregation_func(self.args.aggregation_alg)
 
@@ -39,73 +47,68 @@ class Server:
         self.sampling_clients = lambda nb_samples: np.random.choice(self.args.nb_devices, nb_samples, replace=False)  
         
     def get_data(self, dataset_server, dataset_locals, dataset_test):
-        """raw data를 받아와서 server와 local에 데이터를 분배함"""
-        self.dataset_train, self.dataset_test = dataset_server, dataset_test
-
-        self.test_loader = DataLoader(self.dataset_test, batch_size=100, shuffle=True)
-        for i in range(self.args.nb_devices):
-            self.locals[i].get_dataset(dataset_locals[i])
+        self.dataset_train, self.dataset_locals = dataset_server, dataset_locals
+        self.test_loader = DataLoader(dataset_test, batch_size=100, shuffle=True)
+        self.len_test_data = dataset_test.__len__()
 
     def make_model(self):
-        if 'mnist' in self.args.dataset:
-            _in_dim = 1
-        elif 'cifar' in self.args.dataset:
-            _in_dim = 3
+        model = create_nets(self.args, 'SERVER')
+
+        if self.args.server_location == 'gpu':
+            if self.args.gpu:
+                self.model = model.to(self.args.device)
+            else:
+                raise RuntimeError
+        elif self.args.server_location == 'cpu':
+            self.model = model
         else:
             raise NotImplementedError
 
-        if self.args.model == 'mlp':
-            model = MLP(784, self.args.hidden, 10).to(self.args.device)
-            model_refer = MLP(784, self.args.hidden, 10).to(self.args.device)
-        elif self.args.model == 'mnistcnn':
-            model = MnistCNN(1, 10).to(self.args.device)
-            model_refer = MnistCNN(1, 10).to(self.args.device)
-        elif self.args.model == 'cifarcnn':
-            model = CifarCnn(3, 10).to(self.args.device)
-            model_refer = CifarCnn(3, 10).to(self.args.device)
-        elif self.args.model == 'testcnn':
-            model = TestCNN(_in_dim, 10).to(self.args.device)
-            model_refer = TestCNN(_in_dim, 10).to(self.args.device)
-        elif self.args.model == 'vgg':
-            model = VGG(_in_dim, 10).to(self.args.device)
-            model_refer = VGG(_in_dim, 10).to(self.args.device)
-        else:
-            raise NotImplementedError
-
-        self.model = model
-        self.model_reference = model_refer
-        # print(model)
+        print(model)
 
     def train(self, exp_id=None):
         """Distribute, Train, Aggregation and Test"""
         
-        global_mask = None # initialize global mask as None
+        global_mask = None  # initialize global mask as None
 
         for r in range(self.args.nb_rounds):
             print('==================================================')
-            print('Epoch [%d/%d]'%(r+1, self.args.nb_rounds))
-            sampled_devices = self.sampling_clients(self.nb_client_per_round)
-            
+            print(f'Epoch [{r+1}/{self.args.nb_rounds}]')
+
             # global pruning step
             if self.args.pruning_type == 'server_pruning':
                 self.model, global_mask = self.pruning_handler.pruner(self.model, r)
             
             # distribution step
             current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
-            print('Downloading Sparsity : %0.4f' % current_sparsity)
-            self.distribute_models(sampled_devices, self.model, self.args.model, self.model_reference)
+            print(f'Downloading Sparsity : {current_sparsity:.4f}')
+
+            # Sample Clients
+            sampled_devices = self.sampling_clients(self.nb_client_per_round)
+            clients_dataset = [self.dataset_locals[i] for i in sampled_devices]
+
+            # distribution step
+            # self.distribute_models(sampled_devices, self.model)
         
             # client training & upload models
-            train_loss, updated_locals = self.clients_training(sampled_devices,
+            # train_loss, updated_locals = self.clients_training(sampled_devices,
+            #                                                    keeped_masks=global_mask,
+            #                                                    recovery=self.args.recovery,
+            #                                                    model=self.args.model)
+            
+            # local pruning step
+            # client training & upload models
+            train_loss, updated_locals = self.clients_training(clients_dataset=clients_dataset,
                                                                keeped_masks=global_mask,
                                                                recovery=self.args.recovery,
-                                                               model=self.args.model)
-            # local pruning step
-            local_sparsity = []
-            for i in sampled_devices:
-                _, keeped_local_mask = self.pruning_handler.pruner(self.locals[i].model, r)
-                local_sparsity.append(self.pruning_handler.global_sparsity_evaluator(self.locals[i].model))
-            print('Avg Uploading Sparsity : %0.4f' % (round(sum(local_sparsity)/len(local_sparsity), 4)))
+                                                               r=r)
+            
+            # # recovery step
+            # local_sparsity = []
+            # for i in sampled_devices:
+                # _, keeped_local_mask = self.pruning_handler.pruner(self.locals[i].model, r)
+                # local_sparsity.append(self.pruning_handler.global_sparsity_evaluator(self.locals.model))
+            # print(f'Avg Uploading Sparsity : {round(sum(local_sparsity)/len(local_sparsity), 4):.4f}')
 
             # aggregation step
             self.aggregation_models(updated_locals)
@@ -118,46 +121,59 @@ class Server:
             
             # test & log results
             test_loss, test_acc = self.test()
-            self.logging(train_loss.item(), test_loss, test_acc, r, exp_id)
+            self.logger.get_results(Results(train_loss.item(), test_loss, test_acc, current_sparsity*100, r, exp_id))
             print('==================================================')
             
         return self.container, self.model
 
-    def clients_training(self, sampled_devices, keeped_masks=None, recovery=False, model=None):
+    def clients_training(self, clients_dataset, r, keeped_masks=None, recovery=False):
         """Local의 training 하나씩 실행함. multiprocessing은 구현하지 않았음."""
-        updated_locals = []
-        train_loss = 0
 
-        for i in sampled_devices:
+        updated_locals, local_sparsity = [], []
+        train_loss, _cnt = 0, 0
+
+        for _cnt, dataset in enumerate(clients_dataset):
+            self.locals.get_dataset(client_dataset=dataset)
+            self.locals.get_model(server_model=model_location_switch_downloading(model=self.model,
+                                                                                 args=self.args))
+
             if recovery:
-                train_loss += self.locals[i].train_with_recovery(keeped_masks)
-
+                raise RuntimeError("We Dont need recovery step anymore!!!")
+                # train_loss += self.locals.train_with_recovery(mask_location_switch(keeped_masks, self.args.device))
+                
             else:
                 if keeped_masks is not None:    
                     # get and apply pruned mask from global
-                    mask_adder(self.locals[i].model, keeped_masks)
+                    mask_adder(self.locals.model, mask_location_switch(keeped_masks, self.args.device))
                     
-                train_loss += self.locals[i].train()
+                train_loss += self.locals.train()
             
                 # merge mask of local (remove masks but pruned weights are still zero)
-                mask_merger(self.locals[i].model)    
-            
-            updated_locals.append(self.locals[i].upload_model())
+                mask_merger(self.locals.model)
 
-        train_loss /= len(sampled_devices)
+            _, keeped_local_mask = self.pruning_handler.pruner(self.locals.model, r)
+            local_sparsity.append(self.pruning_handler.global_sparsity_evaluator(self.locals.model))
+            updated_locals.append(self.locals.upload_model())
+            self.locals.reset()
+
+        train_loss /= (_cnt+1)
+        print(f'Avg Uploading Sparsity : {round(sum(local_sparsity)/len(local_sparsity), 4):.4f}')
+
         return train_loss, updated_locals
     
-    def distribute_models(self, sampled_devices, model, model_name, model_reference):
-        for i in sampled_devices:
-            self.locals[i].get_model(copy.deepcopy(model), model_name, model_reference)
+    # def distribute_models(self, sampled_devices, model):
+    #     for i in sampled_devices:
+    #         self.locals[i].get_model(copy.deepcopy(model))
         # print(f"Devices will be training: {sampled_devices}")
 
     def aggregation_models(self, updated_locals):
         self.model.load_state_dict(copy.deepcopy(self.aggregate_model_func(updated_locals)))
+        gc.collect()
+        torch.cuda.empty_cache()
 
     def test(self):
         """ Aggregation 되어있는 Global Model로 Test 진행"""
-        self.model.eval()
+        self.model.to(self.args.device).eval()
         test_loss, correct, itr = 0, 0, 0
         for itr, (x, y) in enumerate(self.test_loader):
             logprobs = self.model(x.to(self.args.device))
@@ -165,10 +181,10 @@ class Server:
             y_pred = torch.argmax(torch.exp(logprobs), dim=1)
             correct += torch.sum(y_pred.view(-1) == y.to(self.args.device).view(-1)).cpu().item()
 
-        self.model.train()
-        return test_loss / (itr + 1), 100 * float(correct) / float(self.dataset_test.__len__())
+        self.model.to(self.args.server_location).train()
+        return test_loss / (itr + 1), 100 * float(correct) / float(self.len_test_data)
 
-    def logging(self, train_loss, test_loss, test_acc, r, exp_id=None):
-        self.container.append([train_loss, test_loss, test_acc, r, exp_id])
-        print(f"Train loss: {train_loss:.3f} Test loss: {test_loss:.3f} | acc: {test_acc:.3f}")
+    def get_global_model(self):
+        return self.model
+
 

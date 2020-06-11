@@ -32,9 +32,9 @@ iid: False  # True, False
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
 # misc
-experiment_name: '[TestCNN-mnist]local_pruning'
+experiment_name: 'local_pruning'
 gpu: True  # True, False | check :: misc.py >> function[fix_arguments]
-#device: 'cuda:1'  # <-- this will be deleted
+server_location: 'cpu'  # gpu, cpu, save
 seed: 100
-nb_exp_reps: 1  # 반복실험 횟수
+nb_exp_reps: 5  # 반복실험 횟수
 

@@ -4,7 +4,6 @@ import torch
 
 
 def get_aggregation_func(alg):
-    """FedAvg만 구현되어 있음"""
 
     if 'fedavg' == alg:
         def aggregate_models(w):

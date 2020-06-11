@@ -1,6 +1,31 @@
-import torchvision.models as _models
 import torch.nn as nn
 import torch
+
+
+def create_nets(args, location):
+    print(f"{location}: ", end=" ")
+
+    if 'mnist' in args.dataset:
+        _in_dim = 1
+    elif 'cifar' in args.dataset:
+        _in_dim = 3
+    else:
+        raise NotImplementedError
+
+    if args.model == 'mlp':
+        model = MLP(784, args.hidden, 10)
+    elif args.model == 'mnistcnn':
+        model = MnistCNN(1, 10)
+    elif args.model == 'cifarcnn':
+        model = CifarCnn(3, 10)
+    elif args.model == 'testcnn':
+        model = TestCNN(_in_dim, 10)
+    elif args.model == 'vgg':
+        model = VGG(_in_dim, 10)
+    else:
+        raise NotImplementedError
+
+    return model
 
 
 class MLP(nn.Module):

@@ -21,8 +21,7 @@ class PruningHandler():
         # Set pruning options
         self.globally = globally
         self.pruning = prune.L1Unstructured if prune_method is None else prune_method
-        
-        
+
     def pruner(self, model, fed_round):
         """Prune weights (expected to be called before distribution)"""
         
