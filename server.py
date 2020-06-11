@@ -67,10 +67,8 @@ class Server:
         print(model)
 
     def train(self, exp_id=None):
-        """Distribute, Train, Aggregation and Test"""
-        
-        global_mask = None  # initialize global mask as None
 
+        global_mask = None  # initialize global mask as None
         for r in range(self.args.nb_rounds):
             print('==================================================')
             print(f'Epoch [{r+1}/{self.args.nb_rounds}]')
@@ -87,22 +85,28 @@ class Server:
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
             clients_dataset = [self.dataset_locals[i] for i in sampled_devices]
 
+            """
+            모델 parameter는 Local이 미리 가지고 있을 필요가 없습니다.
+            Training 할때만 한번에 하나씩 가져갑니다. 그래서 memory 사용량은 일정하게 유지됩니다.
+            """
             # distribution step
             # self.distribute_models(sampled_devices, self.model)
-        
-            # client training & upload models
-            # train_loss, updated_locals = self.clients_training(sampled_devices,
-            #                                                    keeped_masks=global_mask,
-            #                                                    recovery=self.args.recovery,
-            #                                                    model=self.args.model)
-            
+
             # local pruning step
             # client training & upload models
             train_loss, updated_locals = self.clients_training(clients_dataset=clients_dataset,
                                                                keeped_masks=global_mask,
                                                                recovery=self.args.recovery,
                                                                r=r)
-            
+
+            """
+            이 부분은 clients_training으로 이동하였습니다.
+            더 이상 sampled_devices는 존재하지 않습니다.
+            Local을 선택하는 대신에 dataset을(e.g. 200개 중 10개) 선택합니다.
+            이 데이터 셋들은 기존에는 Local에 저장되었지만, 이제는 서버가 다 들고 있습니다. 
+            이제 Local은 structure 하나만 유지한채로 parameter, dataset을 받습니다.
+            따라서 Local이 훈련을 끝내고 나면, sparsity와 pruning을 한번에 처리해야만 합니다.
+            """
             # # recovery step
             # local_sparsity = []
             # for i in sampled_devices:
@@ -117,7 +121,6 @@ class Server:
             if self.args.pruning_type == 'local_pruning':
                 self.model, global_mask = self.pruning_handler.pruner(self.model, r)
                 current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
-                #print('Pruned Global Model Sparsity: %0.4f' % current_sparsity)
             
             # test & log results
             test_loss, test_acc = self.test()
@@ -151,8 +154,13 @@ class Server:
                 # merge mask of local (remove masks but pruned weights are still zero)
                 mask_merger(self.locals.model)
 
+            """ Pruning """
             _, keeped_local_mask = self.pruning_handler.pruner(self.locals.model, r)
+
+            """ Sparsity """
             local_sparsity.append(self.pruning_handler.global_sparsity_evaluator(self.locals.model))
+
+            """ Uploading """
             updated_locals.append(self.locals.upload_model())
             self.locals.reset()
 
@@ -160,11 +168,6 @@ class Server:
         print(f'Avg Uploading Sparsity : {round(sum(local_sparsity)/len(local_sparsity), 4):.4f}')
 
         return train_loss, updated_locals
-    
-    # def distribute_models(self, sampled_devices, model):
-    #     for i in sampled_devices:
-    #         self.locals[i].get_model(copy.deepcopy(model))
-        # print(f"Devices will be training: {sampled_devices}")
 
     def aggregation_models(self, updated_locals):
         self.model.load_state_dict(copy.deepcopy(self.aggregate_model_func(updated_locals)))
@@ -172,7 +175,6 @@ class Server:
         torch.cuda.empty_cache()
 
     def test(self):
-        """ Aggregation 되어있는 Global Model로 Test 진행"""
         self.model.to(self.args.device).eval()
         test_loss, correct, itr = 0, 0, 0
         for itr, (x, y) in enumerate(self.test_loader):

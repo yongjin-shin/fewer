@@ -7,7 +7,6 @@ import sys
 import os
 import datetime
 
-
 # Related Class and functions
 from server import Server
 from data import Preprocessor
@@ -16,7 +15,6 @@ from logger import Logger
 
 # Ignore warnings
 import warnings
-
 warnings.filterwarnings('ignore')
 
 
@@ -31,14 +29,15 @@ def main():
     else:
         files = ['config.yaml']
 
-    for _file in files:
+    _time = datetime.datetime.now()
+    for _file in np.sort(files):
         try:
             args = yaml.load(stream=open(f"config/{_file}"), Loader=yaml.FullLoader)
         except:
             args = yaml.load(stream=open(f"config/{_file}", 'rt', encoding='utf8'), Loader=yaml.FullLoader)
 
         args = fix_arguments(args)
-        logger = Logger(args, _time=datetime.datetime.now())
+        logger = Logger(args, _time=_time)
 
         # 반복실험을 합니다
         for i in range(args.nb_exp_reps):

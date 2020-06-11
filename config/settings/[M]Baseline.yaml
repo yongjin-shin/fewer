@@ -34,6 +34,7 @@ nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 �
 # misc
 experiment_name: 'baseline'
 gpu: True  # True, False | check :: misc.py >> function[fix_arguments]
+server_location: 'cpu'  # gpu, cpu, save
 seed: 100
-nb_exp_reps: 5  # 반복실험 횟수
+nb_exp_reps: 1  # 반복실험 횟수
 

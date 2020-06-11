@@ -64,6 +64,10 @@ class Logger:
                 path = f"{self.path}/{exp_id}"
 
         for _x in xs:
+
+            if self.args.experiment_name == 'baseline' and _x == 'sparcity':
+                continue
+
             for ret in rets:
                 sns.lineplot(x=_x, y=ret,  hue='is_test', style='is_test', data=tmp[tmp[ret].notna()])
 
@@ -85,17 +89,3 @@ class Logger:
                 print(f"\033[91mSaved {path}/{_x}_{ret}.png\033[00m")
                 plt.show()
                 plt.close()
-
-
-if __name__ == '__main__':
-    import yaml
-    from misc import fix_arguments
-
-    try:
-        args = yaml.load(stream=open("config/config.yaml"), Loader=yaml.FullLoader)
-    except:
-        args = yaml.load(stream=open("config/config.yaml", 'rt', encoding='utf8'), Loader=yaml.FullLoader)
-
-    args = fix_arguments(args)
-    logger = Logger(args)
-    print("debugging")

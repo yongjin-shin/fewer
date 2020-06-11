@@ -32,34 +32,35 @@ class Local:
 
         return train_loss / ((ep+1) * (itr+1))
 
-    def train_with_recovery(self, keeped_masks):
-        train_loss, itr, ep = 0, 0, 0
-
-        for ep in range(self.args.local_ep):
-            for itr, (x, y) in enumerate(self.data_loader):
-                # reset w_dense gradients
-                self.optim.zero_grad()
-                
-                # w_tilda <- mask * w_dense
-                with torch.no_grad():
-                    masked_model = copy.deepcopy(self.model)
-                    mask_adder(masked_model, keeped_masks)
-                    mask_merger(masked_model)
-
-                # compute gradient from w_tilda
-                logprobs = masked_model(x.to(self.args.device))
-                loss = self.loss_func(logprobs, y.to(self.args.device))
-                loss.backward()
-                train_loss += loss
-
-                # deliver gradients from w_tilda to w_dense
-                for dense_param, mask_param in zip(self.model.parameters(), masked_model.parameters()):
-                    dense_param.grad = mask_param.grad
-                
-                # update w_dense weights
-                self.optim.step()
-
-        return train_loss / ((ep+1) * (itr+1))
+    """ To be deleted after this commit from master"""
+    # def train_with_recovery(self, keeped_masks):
+    #     train_loss, itr, ep = 0, 0, 0
+    #
+    #     for ep in range(self.args.local_ep):
+    #         for itr, (x, y) in enumerate(self.data_loader):
+    #             # reset w_dense gradients
+    #             self.optim.zero_grad()
+    #
+    #             # w_tilda <- mask * w_dense
+    #             with torch.no_grad():
+    #                 masked_model = copy.deepcopy(self.model)
+    #                 mask_adder(masked_model, keeped_masks)
+    #                 mask_merger(masked_model)
+    #
+    #             # compute gradient from w_tilda
+    #             logprobs = masked_model(x.to(self.args.device))
+    #             loss = self.loss_func(logprobs, y.to(self.args.device))
+    #             loss.backward()
+    #             train_loss += loss
+    #
+    #             # deliver gradients from w_tilda to w_dense
+    #             for dense_param, mask_param in zip(self.model.parameters(), masked_model.parameters()):
+    #                 dense_param.grad = mask_param.grad
+    #
+    #             # update w_dense weights
+    #             self.optim.step()
+    #
+    #     return train_loss / ((ep+1) * (itr+1))
 
     def get_dataset(self, client_dataset):
         if client_dataset.__len__() <= 0:
@@ -70,6 +71,7 @@ class Local:
     def get_model(self, server_model):
         self.model.load_state_dict(server_model)
 
+        # Todo: Optimizer도 일정하게 scheduling하면서 받아와야 함
         if 'sgd' == self.args.optimizer:
             self.optim = torch.optim.SGD(self.model.parameters(),
                                          lr=self.args.lr,
