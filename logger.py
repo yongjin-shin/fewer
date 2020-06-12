@@ -6,23 +6,28 @@ import matplotlib.pyplot as plt
 import torch
 from collections import namedtuple
 
-Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparcity', 'round', 'exp_id'])
+Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparcity', 'cost', 'round', 'exp_id'])
 
 rets = ['ACC', 'Loss']
-xs = ['sparcity', 'round']
+xs = ['sparcity', 'round', 'Cost']
 Table_items = ['exp_name'] + xs + ['exp_id'] + rets + ['is_test']
 Tabletup = namedtuple('Tabletup', Table_items)
 
 
 class Logger:
-    def __init__(self, args, _time):
+    def __init__(self, _time, folder):
+        self.df = pd.DataFrame(columns=Table_items)
+        self.root = f"./log/{_time}/{folder}"
+
+        self.args = None
+        self.tot_sparsity = None
+        self.path = None
+
+    def get_args(self, args):
         self.args = args
         self.tot_sparsity = np.matmul(args.pruning_pack, args.pruning_plan)
-        self.df = pd.DataFrame(columns=Table_items)
-        self._pointer = 0
 
         # Create saving folder
-        self.root = f"./log/{_time}"
         self.path = f"{self.root}/[{args.model}-{args.dataset}]{args.experiment_name}"
         Path(self.path).mkdir(parents=True, exist_ok=True)
         for k in sorted(vars(args).keys()):
@@ -34,9 +39,9 @@ class Logger:
         torch.save(param, f"{self.path}/{exp_id}/model.h5")
 
     def get_results(self, results):
-        train_loss = Tabletup(self.args.experiment_name, results.sparcity, results.round, results.exp_id, float('NaN'), results.train_loss, 'Train')
-        test_loss = Tabletup(self.args.experiment_name, results.sparcity, results.round, results.exp_id, float('NaN'), results.test_loss, 'Test')
-        test_acc = Tabletup(self.args.experiment_name, results.sparcity, results.round, results.exp_id, results.test_acc, float('NaN'), 'Test')
+        train_loss = Tabletup(self.args.experiment_name, results.sparcity, results.round, results.cost, results.exp_id, float('NaN'), results.train_loss, 'Train')
+        test_loss = Tabletup(self.args.experiment_name, results.sparcity, results.round, results.cost, results.exp_id, float('NaN'), results.test_loss, 'Test')
+        test_acc = Tabletup(self.args.experiment_name, results.sparcity, results.round, results.cost, results.exp_id, results.test_acc, float('NaN'), 'Test')
 
         self.df = self.df.append(train_loss._asdict(), ignore_index=True)
         self.df = self.df.append(test_loss._asdict(), ignore_index=True)
@@ -69,10 +74,12 @@ class Logger:
                 continue
 
             for ret in rets:
-                sns.lineplot(x=_x, y=ret,  hue='is_test', style='is_test', data=tmp[tmp[ret].notna()])
+                sns.lineplot(x=_x, y=ret,  hue='is_test', style='is_test', markers=True, data=tmp[tmp[ret].notna()])
 
                 if 'sparcity' == _x:
-                    plt.xlabel(f"{_x}(%)")
+                    plt.xlabel(f"{_x} (%)")
+                elif 'Cost' == _x:
+                    plt.xlabel(f"{_x} (Mbytes)")
                 else:
                     plt.xlabel(f"{_x}")
 
@@ -89,3 +96,35 @@ class Logger:
                 print(f"\033[91mSaved {path}/{_x}_{ret}.png\033[00m")
                 plt.show()
                 plt.close()
+
+    def global_plot(self, files):
+        file = f"{self.root}/results.csv"
+        df = pd.read_csv(file)
+        df["legend"] = "[" + df['exp_name'] + "] " + df['is_test']
+
+        acc_df = df[df['ACC'].notna()]
+        loss_df = df[df['Loss'].notna()]
+
+        for _x in xs:
+            for ret in rets:
+
+                if 'sparcity' == _x:
+                    plt.xlabel(f"{_x} (%)")
+                elif 'Cost' == _x:
+                    plt.xlabel(f"{_x} (Mbytes)")
+                else:
+                    plt.xlabel(f"{_x}")
+
+                if 'Loss' == ret:
+                    data = loss_df
+                else:
+                    data = acc_df
+
+                if _x == 'sparcity':
+                    data = data[~(data['exp_name'] == 'baseline')]
+
+                sns.lineplot(x=_x, y=ret, hue='legend', style='legend', markers=True, data=data)
+                plt.savefig(f"{self.root}/{_x}_{ret}.png")
+                plt.close()
+
+        print("")

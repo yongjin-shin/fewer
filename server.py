@@ -8,7 +8,7 @@ from local import Local
 from aggregation import get_aggregation_func
 from pruning import *
 from networks import create_nets
-from misc import model_location_switch_downloading, mask_location_switch
+from misc import model_location_switch_downloading, mask_location_switch, get_size_per_round
 from logger import Results
 import gc
 
@@ -26,6 +26,7 @@ class Server:
         # pruning handler
         self.pruning_handler = PruningHandler(args)
         self.sparsity = 0
+        self.tot_comm_cost = 0
         
         # dataset
         self.dataset_train, self.dataset_locals = None, None
@@ -69,6 +70,7 @@ class Server:
     def train(self, exp_id=None):
 
         global_mask = None  # initialize global mask as None
+
         for r in range(self.args.nb_rounds):
             print('==================================================')
             print(f'Epoch [{r+1}/{self.args.nb_rounds}]')
@@ -80,6 +82,7 @@ class Server:
             # distribution step
             current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
             print(f'Downloading Sparsity : {current_sparsity:.4f}')
+            self.tot_comm_cost += get_size_per_round(self.model.parameters()) * self.nb_client_per_round
 
             # Sample Clients
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
@@ -124,7 +127,8 @@ class Server:
             
             # test & log results
             test_loss, test_acc = self.test()
-            self.logger.get_results(Results(train_loss.item(), test_loss, test_acc, current_sparsity*100, r, exp_id))
+
+            self.logger.get_results(Results(train_loss.item(), test_loss, test_acc, current_sparsity*100, self.tot_comm_cost, r, exp_id))
             print('==================================================')
             
         return self.container, self.model
@@ -162,6 +166,8 @@ class Server:
 
             """ Uploading """
             updated_locals.append(self.locals.upload_model())
+            self.tot_comm_cost += get_size_per_round(self.locals.model.parameters())
+
             self.locals.reset()
 
         train_loss /= (_cnt+1)
