@@ -30,16 +30,13 @@ class PruningHandler():
         amount = self._pruning_ratio_calculator(fed_round)
         
         if self.globally:
-            keeped_masks = mask_collector(model)
-            mask_test = mask_evaluator(keeped_masks)
-            print(mask_test)
+            #mask_test = mask_evaluator(keeped_masks)
+            #print(mask_test)
             prune.global_unstructured(weight_set,
                                       pruning_method=self.pruning, 
                                       amount=amount)
-            print(amount)
+            
             keeped_masks = mask_collector(model)
-            mask_test = mask_evaluator(keeped_masks)
-            print(mask_test)
             
         else:
             raise NotImplementedError('Structured pruning is not implemented yet!')

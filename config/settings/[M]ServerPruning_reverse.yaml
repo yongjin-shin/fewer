@@ -13,7 +13,7 @@ pruning_type: 'server_pruning'
 recovery: False
 
 plan: [0, 100, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
-target_sparsity: 0.3
+target_sparsity: 0.9
 plan_type: 'reverse'
 
 

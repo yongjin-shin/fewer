@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import torch
 from collections import namedtuple
 
-Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparcity', 'round', 'exp_id'])
+Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparsity', 'round', 'exp_id'])
 
 rets = ['ACC', 'Loss']
-xs = ['sparcity', 'round']
+xs = ['sparsity', 'round']
 Table_items = ['exp_name'] + xs + ['exp_id'] + rets + ['is_test']
 Tabletup = namedtuple('Tabletup', Table_items)
 
@@ -17,7 +17,7 @@ Tabletup = namedtuple('Tabletup', Table_items)
 class Logger:
     def __init__(self, args, _time):
         self.args = args
-        self.tot_sparsity = np.matmul(args.pruning_pack, args.pruning_plan)
+        self.tot_sparsity = args.target_sparsity
         self.df = pd.DataFrame(columns=Table_items)
         self._pointer = 0
 
@@ -34,9 +34,9 @@ class Logger:
         torch.save(param, f"{self.path}/{exp_id}/model.h5")
 
     def get_results(self, results):
-        train_loss = Tabletup(self.args.experiment_name, results.sparcity, results.round, results.exp_id, float('NaN'), results.train_loss, 'Train')
-        test_loss = Tabletup(self.args.experiment_name, results.sparcity, results.round, results.exp_id, float('NaN'), results.test_loss, 'Test')
-        test_acc = Tabletup(self.args.experiment_name, results.sparcity, results.round, results.exp_id, results.test_acc, float('NaN'), 'Test')
+        train_loss = Tabletup(self.args.experiment_name, results.sparsity, results.round, results.exp_id, float('NaN'), results.train_loss, 'Train')
+        test_loss = Tabletup(self.args.experiment_name, results.sparsity, results.round, results.exp_id, float('NaN'), results.test_loss, 'Test')
+        test_acc = Tabletup(self.args.experiment_name, results.sparsity, results.round, results.exp_id, results.test_acc, float('NaN'), 'Test')
 
         self.df = self.df.append(train_loss._asdict(), ignore_index=True)
         self.df = self.df.append(test_loss._asdict(), ignore_index=True)
@@ -65,13 +65,13 @@ class Logger:
 
         for _x in xs:
 
-            if self.args.experiment_name == 'baseline' and _x == 'sparcity':
+            if self.args.experiment_name == 'baseline' and _x == 'sparsity':
                 continue
 
             for ret in rets:
                 sns.lineplot(x=_x, y=ret,  hue='is_test', style='is_test', data=tmp[tmp[ret].notna()])
 
-                if 'sparcity' == _x:
+                if 'sparsity' == _x:
                     plt.xlabel(f"{_x}(%)")
                 else:
                     plt.xlabel(f"{_x}")

@@ -39,10 +39,10 @@ def mask_collector(model):
     for module_name, module in model.named_modules():
         key = f"{module_name}.weight_mask"
         if isinstance(module, torch.nn.Conv2d):
-            model_masks[key] = (module.weight != 0).int()
+            model_masks[key] = (module.weight_mask != 0).int()
             
         if isinstance(module, torch.nn.Linear):
-            model_masks[key] = (module.weight != 0).int()
+            model_masks[key] = (module.weight_mask != 0).int()
 
     return model_masks
 
