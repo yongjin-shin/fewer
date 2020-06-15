@@ -13,7 +13,7 @@ def read_argv(_file, time):
         for _, _, folder in os.walk(f'./config/{_file}'):
             for f in folder:
                 if '.yaml' in f and not 'check' in folder:
-                    files.append(f'settings/{f}')
+                    files.append(f'{_file}/{f}')
     else:
         files = ['config.yaml']
 
