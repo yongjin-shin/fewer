@@ -1,16 +1,14 @@
-import os
 import numpy as np
 import random
 import torch
 import yaml
 import sys
-import os
 import datetime
 
 # Related Class and functions
 from server import Server
 from data import Preprocessor
-from misc import fix_arguments
+from misc import fix_arguments, read_argv
 from logger import Logger
 
 # Ignore warnings
@@ -19,34 +17,31 @@ warnings.filterwarnings('ignore')
 
 
 def main():
-    _file = sys.argv[-1]
-    if not 'main.py' in _file:
-        files = []
-        for _, _, folder in os.walk('./config/settings/'):
-            for f in folder:
-                if '.yaml' in f and not 'checkpoint' in f:
-                    files.append(f'settings/{f}')
-    else:
-        files = ['config.yaml']
-
     _time = datetime.datetime.now()
-    for _file in np.sort(files):
-        try:
-            args = yaml.load(stream=open(f"config/{_file}"), Loader=yaml.FullLoader)
-        except:
-            args = yaml.load(stream=open(f"config/{_file}", 'rt', encoding='utf8'), Loader=yaml.FullLoader)
+    _, folders = read_argv(sys.argv[-1], _time)
 
-        args = fix_arguments(args)
-        logger = Logger(args, _time=_time)
+    for folder in folders:
+        logger = Logger(_time=_time, argv=sys.argv[-1], folder=folder)
+        files = np.sort(folders[folder])
+        for _file in files:
+            try:
+                args = yaml.load(stream=open(f"config/{_file}"), Loader=yaml.FullLoader)
+            except:
+                args = yaml.load(stream=open(f"config/{_file}", 'rt', encoding='utf8'), Loader=yaml.FullLoader)
 
-        # 반복실험을 합니다
-        for i in range(args.nb_exp_reps):
-            model = single_experiment(args, i, logger)
-            logger.save_model(param=model.state_dict(), exp_id=i)
-            logger.plot(exp_id=i)
+            args = fix_arguments(args)
+            logger.get_args(args)
 
-        # 결과를 저장합니다
-        logger.save_data()
+            # 반복실험을 합니다
+            for i in range(args.nb_exp_reps):
+                model = single_experiment(args, i, logger)
+                logger.save_model(param=model.state_dict(), exp_id=i)
+                logger.plot(exp_id=i)
+
+            # 결과를 저장합니다
+            logger.save_data()
+
+        logger.global_plot(files)
 
 
 def single_experiment(args, i, logger):
