@@ -21,7 +21,7 @@ def main():
     _, folders = read_argv(sys.argv[-1], _time)
 
     for folder in folders:
-        logger = Logger(_time=_time, folder=folder)
+        logger = Logger(_time=_time, argv=sys.argv[-1], folder=folder)
         files = np.sort(folders[folder])
         for _file in files:
             try:

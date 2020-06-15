@@ -6,18 +6,18 @@ import matplotlib.pyplot as plt
 import torch
 from collections import namedtuple
 
-Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparcity', 'cost', 'round', 'exp_id'])
+Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparcity', 'cost', 'round', 'exp_id', 'ellapsed_time'])
 
 rets = ['ACC', 'Loss']
 xs = ['sparcity', 'round', 'Cost']
-Table_items = ['exp_name'] + xs + ['exp_id'] + rets + ['is_test']
+Table_items = ['exp_name'] + xs + ['exp_id'] + rets + ['Legend']
 Tabletup = namedtuple('Tabletup', Table_items)
 
 
 class Logger:
-    def __init__(self, _time, folder):
+    def __init__(self, _time, argv, folder):
         self.df = pd.DataFrame(columns=Table_items)
-        self.root = f"./log/{_time}/{folder}"
+        self.root = f"./log/{_time}_{argv}/{folder}"
 
         self.args = None
         self.tot_sparsity = None
@@ -51,7 +51,8 @@ class Logger:
     def print_data(self, results):
         print(f"Train loss: {results.train_loss:.3f} "
               f"Test loss: {results.test_loss:.3f} | "
-              f"acc: {results.test_acc:.3f}")
+              f"Acc: {results.test_acc:.3f} | "
+              f"Time: {results.ellapsed_time:.2f}s ")
 
     def save_data(self):
         self.df.to_csv(f"{self.root}/results.csv")
@@ -74,7 +75,7 @@ class Logger:
                 continue
 
             for ret in rets:
-                sns.lineplot(x=_x, y=ret,  hue='is_test', style='is_test', markers=True, data=tmp[tmp[ret].notna()])
+                sns.lineplot(x=_x, y=ret,  hue='Legend', style='Legend', markers=True, data=tmp[tmp[ret].notna()])
 
                 if 'sparcity' == _x:
                     plt.xlabel(f"{_x} (%)")
@@ -85,10 +86,10 @@ class Logger:
 
                 if 'ACC' in ret:
                     plt.ylabel(f"{ret}(%)")
-                    plt.ylim(50, 100)
+                    plt.ylim(40, 100)
                 elif 'Loss' in ret:
                     plt.ylabel(f"{ret}")
-                    plt.ylim(0, 0.8)
+                    plt.ylim(0, 1)
 
                 plt.title(f"Dataset: {self.args.dataset} | Model: {self.args.model}")
                 plt.tight_layout()
@@ -100,7 +101,7 @@ class Logger:
     def global_plot(self, files):
         file = f"{self.root}/results.csv"
         df = pd.read_csv(file)
-        df["legend"] = "[" + df['exp_name'] + "] " + df['is_test']
+        df["legend"] = "[" + df['exp_name'] + "] " + df['Legend']
 
         acc_df = df[df['ACC'].notna()]
         loss_df = df[df['Loss'].notna()]

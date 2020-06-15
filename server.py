@@ -8,9 +8,10 @@ from local import Local
 from aggregation import get_aggregation_func
 from pruning import *
 from networks import create_nets
-from misc import model_location_switch_downloading, mask_location_switch, get_size_per_round
+from misc import model_location_switch_downloading, mask_location_switch, get_size
 from logger import Results
 import gc
+import time
 
 # from pynvml import *
 
@@ -35,6 +36,7 @@ class Server:
 
         # about model
         self.model = None
+        self.init_cost = 0
         self.make_model()
 
         # about optimization
@@ -65,6 +67,7 @@ class Server:
         else:
             raise NotImplementedError
 
+        self.init_cost = get_size(self.model.parameters())
         print(model)
 
     def train(self, exp_id=None):
@@ -72,6 +75,7 @@ class Server:
         global_mask = None  # initialize global mask as None
 
         for r in range(self.args.nb_rounds):
+            start_time = time.time()
             print('==================================================')
             print(f'Epoch [{r+1}/{self.args.nb_rounds}]')
 
@@ -82,7 +86,7 @@ class Server:
             # distribution step
             current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
             print(f'Downloading Sparsity : {current_sparsity:.4f}')
-            self.tot_comm_cost += get_size_per_round(self.model.parameters()) * self.nb_client_per_round
+            self.tot_comm_cost += self.init_cost * (1-current_sparsity) * self.nb_client_per_round
 
             # Sample Clients
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
@@ -128,7 +132,9 @@ class Server:
             # test & log results
             test_loss, test_acc = self.test()
 
-            self.logger.get_results(Results(train_loss.item(), test_loss, test_acc, current_sparsity*100, self.tot_comm_cost, r, exp_id))
+            end_time = time.time()
+            ellapsed_time = end_time - start_time
+            self.logger.get_results(Results(train_loss.item(), test_loss, test_acc, current_sparsity*100, self.tot_comm_cost, r, exp_id, ellapsed_time))
             print('==================================================')
             
         return self.container, self.model
@@ -166,7 +172,7 @@ class Server:
 
             """ Uploading """
             updated_locals.append(self.locals.upload_model())
-            self.tot_comm_cost += get_size_per_round(self.locals.model.parameters())
+            self.tot_comm_cost += self.init_cost * (1 - local_sparsity[-1])
 
             self.locals.reset()
 
@@ -189,7 +195,7 @@ class Server:
             y_pred = torch.argmax(torch.exp(logprobs), dim=1)
             correct += torch.sum(y_pred.view(-1) == y.to(self.args.device).view(-1)).cpu().item()
 
-        self.model.to(self.args.server_location).train()
+        self.model.to(self.args.device).train()
         return test_loss / (itr + 1), 100 * float(correct) / float(self.len_test_data)
 
     def get_global_model(self):

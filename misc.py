@@ -10,9 +10,9 @@ from sys import getsizeof
 def read_argv(_file, time):
     if not 'main.py' in _file:
         files = []
-        for _, _, folder in os.walk('./config/settings'):
+        for _, _, folder in os.walk(f'./config/{_file}'):
             for f in folder:
-                if '.yaml' in f:
+                if '.yaml' in f and not 'check' in folder:
                     files.append(f'settings/{f}')
     else:
         files = ['config.yaml']
@@ -25,9 +25,9 @@ def read_argv(_file, time):
         else:
             folders[tmp] = [f for f in files if tmp in f]
 
-    if len(folders) > 0:
-        for _f in folders:
-            Path(f'./log/{time}/{_f}').mkdir(parents=True, exist_ok=True)
+    # if len(folders) > 0:
+    #     for _f in folders:
+    #         Path(f'./log/{time}/{_f}').mkdir(parents=True, exist_ok=True)
 
     return files, folders
 
@@ -82,12 +82,12 @@ def mask_location_switch(keeped_masks, _device):
     return keeped_masks
 
 
-def get_size_per_round(param):
+def get_size(param):
     size = 0
 
     for p in param:
         tmp = p.detach().to('cpu').numpy()
-        size += tmp[tmp != 0].nbytes
+        size += tmp.nbytes
 
     return round(size/1024/1024, 2)
 
