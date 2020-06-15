@@ -64,7 +64,8 @@ class Server:
         else:
             raise NotImplementedError
 
-        print(model)
+        #self.original_model = copy.deepcopy(model)
+        #self.original_model = self.original_model.to(self.args.device)
 
     def train(self, exp_id=None):
 
@@ -76,7 +77,8 @@ class Server:
             # global pruning step
             if self.args.pruning_type == 'server_pruning':
                 self.model, global_mask = self.pruning_handler.pruner(self.model, r)
-            
+                mask_merger(self.model)
+                
             # distribution step
             current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
             print(f'Downloading Sparsity : {current_sparsity:.4f}')
@@ -118,8 +120,9 @@ class Server:
             self.aggregation_models(updated_locals)
             
             # global pruning step
-            if self.args.pruning_type == 'local_pruning':
+            if self.args.pruning_type in ['local_pruning', 'local_pruning_half']:
                 self.model, global_mask = self.pruning_handler.pruner(self.model, r)
+                mask_merger(self.model)
                 current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
             
             # test & log results
@@ -148,14 +151,34 @@ class Server:
                 if keeped_masks is not None:    
                     # get and apply pruned mask from global
                     mask_adder(self.locals.model, mask_location_switch(keeped_masks, self.args.device))
-                    
-                train_loss += self.locals.train()
-            
-                # merge mask of local (remove masks but pruned weights are still zero)
-                mask_merger(self.locals.model)
+                
+                if self.args.pruning_type == 'server_pruning':
+                    train_loss += self.locals.train()
+                    mask_merger(self.locals.model)
+                
+                elif self.args.pruning_type == 'local_pruning':
+                    train_loss += self.locals.train()
+                    mask_merger(self.locals.model)
+                    _, keeped_local_mask = self.pruning_handler.pruner(self.locals.model, r)
+                    mask_merger(self.locals.model)
 
-            """ Pruning """
-            _, keeped_local_mask = self.pruning_handler.pruner(self.locals.model, r)
+                    
+                elif self.args.pruning_type == 'local_pruning_half':
+                    # run half epochs with initial mask
+                    self.locals.adapt_half_epochs('half1')
+                    train_loss += self.locals.train()
+                    
+                    # local pruning step 
+                    mask_merger(self.locals.model)
+                    _, keeped_local_mask = self.pruning_handler.pruner(self.locals.model, r)
+                    mask_adder(self.locals.model, mask_location_switch(keeped_local_mask, self.args.device))
+                    
+                    # run remaining half epochs
+                    self.locals.adapt_half_epochs('half2')
+                    train_loss += self.locals.train()
+                    
+                    # merge mask of local (remove masks but pruned weights are still zero)
+                    mask_merger(self.locals.model)
 
             """ Sparsity """
             local_sparsity.append(self.pruning_handler.global_sparsity_evaluator(self.locals.model))

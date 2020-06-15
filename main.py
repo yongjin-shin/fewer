@@ -22,9 +22,9 @@ def main():
     _file = sys.argv[-1]
     if not 'main.py' in _file:
         files = []
-        for _, _, folder in os.walk('./config/settings'):
+        for _, _, folder in os.walk('./config/settings/'):
             for f in folder:
-                if '.yaml' in f:
+                if '.yaml' in f and not 'checkpoint' in f:
                     files.append(f'settings/{f}')
     else:
         files = ['config.yaml']

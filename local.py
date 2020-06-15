@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader
 from pruning import *
 from networks import create_nets
 from misc import model_location_switch_uploading
+import math
 
 
 class Local:
@@ -15,10 +16,12 @@ class Local:
         self.model = create_nets(self.args, 'LOCAL').to(self.args.device)
         self.optim = None
         self.loss_func = torch.nn.NLLLoss(reduction='mean')
+        self.epochs = self.args.local_ep
 
     def train(self):
         train_loss, itr, ep = 0, 0, 0
-        for ep in range(self.args.local_ep):
+        
+        for ep in range(self.epochs):            
             for itr, (x, y) in enumerate(self.data_loader):
                 self.optim.zero_grad()
 
@@ -30,7 +33,13 @@ class Local:
 
                 self.optim.step()
 
-        return train_loss / ((ep+1) * (itr+1))
+        return train_loss / ((self.args.local_ep) * (itr+1))
+    
+    def adapt_half_epochs(self, mode='half1'):
+        if mode == 'half1':
+            self.epochs = math.ceil(self.args.local_ep/2)
+        elif mode == 'half2':
+            self.epochs = math.floor(self.args.local_ep/2)        
 
     """ To be deleted after this commit from master"""
     # def train_with_recovery(self, keeped_masks):
