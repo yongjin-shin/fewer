@@ -17,31 +17,27 @@ warnings.filterwarnings('ignore')
 
 
 def main():
-    _time = datetime.datetime.now()
-    _, folders = read_argv(sys.argv[-1], _time)
+    yaml_file = read_argv(sys.argv)
 
-    for folder in folders:
-        logger = Logger(_time=_time, argv=sys.argv[-1], folder=folder)
-        files = np.sort(folders[folder])
-        for _file in files:
-            try:
-                args = yaml.load(stream=open(f"config/{_file}"), Loader=yaml.FullLoader)
-            except:
-                args = yaml.load(stream=open(f"config/{_file}", 'rt', encoding='utf8'), Loader=yaml.FullLoader)
+    try:
+        args = yaml.load(stream=open(f"config/{yaml_file}"), Loader=yaml.FullLoader)
+    except:
+        args = yaml.load(stream=open(f"config/{yaml_file}", 'rt', encoding='utf8'), Loader=yaml.FullLoader)
 
-            args = fix_arguments(args)
-            logger.get_args(args)
+    args = fix_arguments(args)
+    logger = Logger()
+    logger.get_args(args)
 
-            # 반복실험을 합니다
-            for i in range(args.nb_exp_reps):
-                model = single_experiment(args, i, logger)
-                logger.save_model(param=model.state_dict(), exp_id=i)
-                logger.plot(exp_id=i)
+    # 반복실험을 합니다
+    for i in range(args.nb_exp_reps):
+        model = single_experiment(args, i, logger)
+        logger.save_model(param=model.state_dict(), exp_id=i)
+        logger.plot(exp_id=i)
 
-            # 결과를 저장합니다
-            logger.save_data()
+    # 결과를 저장합니다
+    logger.save_data()
 
-        logger.global_plot(files)
+    # logger.global_plot(files)
 
 
 def single_experiment(args, i, logger):

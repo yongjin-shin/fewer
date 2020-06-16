@@ -1,4 +1,5 @@
 import numpy as np
+import yaml
 from pathlib import Path
 import pandas as pd
 import seaborn as sns
@@ -6,7 +7,7 @@ import matplotlib.pyplot as plt
 import torch
 from collections import namedtuple
 
-Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparsity', 'cost', 'round', 'exp_id', 'ellapsed_time'])
+Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparsity', 'cost', 'round', 'exp_id', 'ellapsed_time', 'lr'])
 
 rets = ['ACC', 'Loss']
 xs = ['sparsity', 'round', 'Cost']
@@ -15,20 +16,19 @@ Tabletup = namedtuple('Tabletup', Table_items)
 
 
 class Logger:
-    def __init__(self, _time, argv, folder):
+    def __init__(self):
         self.df = pd.DataFrame(columns=Table_items)
-        self.root = f"./log/{_time}_{argv}/{folder}"
+        self.path = f"./log"
 
         self.args = None
         self.tot_sparsity = None
-        self.path = None
 
     def get_args(self, args):
         self.args = args
         self.tot_sparsity = args.target_sparsity
 
         # Create saving folder
-        self.path = f"{self.root}/[{args.model}-{args.dataset}]{args.experiment_name}"
+        self.path = f"{self.path}/[{args.model}-{args.dataset}]{args.experiment_name}"
         Path(self.path).mkdir(parents=True, exist_ok=True)
         for k in sorted(vars(args).keys()):
             print("{}: {}".format(k, vars(args)[k]))
@@ -52,10 +52,11 @@ class Logger:
         print(f"Train loss: {results.train_loss:.3f} "
               f"Test loss: {results.test_loss:.3f} | "
               f"Acc: {results.test_acc:.3f} | "
-              f"Time: {results.ellapsed_time:.2f}s ")
+              f"Time: {results.ellapsed_time:.2f}s | "
+              f"lr: {results.lr:.5f}")
 
     def save_data(self):
-        self.df.to_csv(f"{self.root}/results.csv")
+        self.df.to_csv(f"{self.path}/results.csv")
         self.plot(print_avg=True)
 
     def plot(self, print_avg=False, exp_id=None):
@@ -98,7 +99,8 @@ class Logger:
                 plt.show()
                 plt.close()
 
-    def global_plot(self, files):
+    def global_plot(self):
+        raise RuntimeError
         file = f"{self.root}/results.csv"
         df = pd.read_csv(file)
         df["legend"] = "[" + df['exp_name'] + "] " + df['Legend']
@@ -129,3 +131,8 @@ class Logger:
                 plt.close()
 
         print("")
+
+    def save_yaml(self):
+        f_name = f'{self.path}/exp_config.yaml'
+        with open(f_name, 'w') as outfile:
+            yaml.dump(self.args, outfile, default_flow_style=False)
