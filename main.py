@@ -36,6 +36,7 @@ def main():
 
     # 결과를 저장합니다
     logger.save_data()
+    logger.save_yaml()
 
     # logger.global_plot(files)
 
