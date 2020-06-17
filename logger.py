@@ -72,11 +72,13 @@ class Logger:
 
         for _x in xs:
 
-            if self.args.experiment_name == 'baseline' and _x == 'sparsity':
+            if _x == 'sparsity' and len(tmp[_x].unique()) < 2:
                 continue
 
             for ret in rets:
-                sns.lineplot(x=_x, y=ret,  hue='Legend', style='Legend', markers=True, data=tmp[tmp[ret].notna()])
+                ax = sns.lineplot(x=_x, y=ret,  hue='Legend', style='Legend', markers=True, data=tmp[tmp[ret].notna()])
+                if 'reverse' in self.args.experiment_name and _x == 'sparsity':
+                    ax.invert_xaxis()
 
                 if 'sparsity' == _x:
                     plt.xlabel(f"{_x} (%)")
@@ -96,7 +98,7 @@ class Logger:
                 plt.tight_layout()
                 plt.savefig(f'{path}/{_x}_{ret}.png')
                 print(f"\033[91mSaved {path}/{_x}_{ret}.png\033[00m")
-                plt.show()
+                # plt.show()
                 plt.close()
 
     def global_plot(self):
