@@ -13,8 +13,8 @@ pruning_type: 'server_pruning'
 recovery: False
 
 plan: [0, 100, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
-target_sparsity: 0.8
-plan_type: 'reverse'
+target_sparsity: 0.9
+plan_type: 'base'
 
 
 # model arguments
@@ -33,9 +33,9 @@ iid: False  # True, False
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
 # misc
-experiment_name: 'server_pruning_reverse'
+experiment_name: 'server_pruning'
 gpu: True  # True, False | check :: misc.py >> function[fix_arguments]
-server_location: 'gpu'  # gpu, cpu, save
+server_location: 'cpu'  # gpu, cpu, save
 seed: 100
 nb_exp_reps: 3  # 반복실험 횟수
 

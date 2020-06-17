@@ -9,16 +9,16 @@ aggregation_alg: 'fedavg' # aggregtion algorithm
 
 # fedPR arguments
 pruning: True
-pruning_type: 'server_pruning'
+pruning_type: 'local_pruning_half'
 recovery: False
 
 plan: [0, 100, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
-target_sparsity: 0.8
+target_sparsity: 0.9
 plan_type: 'reverse'
 
 
 # model arguments
-model: 'mnistcnn' #mlp, mnistcnn, cifarcnn, testcnn, vgg
+model: 'testcnn' #mlp, mnistcnn, cifarcnn, testcnn, vgg
 hidden: 256
 loss_func: 'CrossEntropy'
 lr: 0.01
@@ -33,9 +33,9 @@ iid: False  # True, False
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
 # misc
-experiment_name: 'server_pruning_reverse'
+experiment_name: 'local_pruning_half_reverse'
 gpu: True  # True, False | check :: misc.py >> function[fix_arguments]
-server_location: 'gpu'  # gpu, cpu, save
+server_location: 'cpu'  # gpu, cpu, save
 seed: 100
 nb_exp_reps: 3  # 반복실험 횟수
 

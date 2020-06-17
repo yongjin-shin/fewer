@@ -16,7 +16,7 @@ class PruningHandler():
         (default setting) : globally prune with L1 norm & no recovery
         """
         # Specify pruning & recovery plan for each round
-        self.pruning_plan, self.base_sparsity = self._planner(args)
+        self.pruning_plan = self._planner(args)
         
         # Set pruning options
         self.globally = globally
@@ -26,18 +26,18 @@ class PruningHandler():
         """Prune weights (expected to be called before distribution)"""
         
         weight_set = self._global_setter(model)
-        current_sparsity = self.global_sparsity_evaluator(model)
-        amount = self._pruning_ratio_calculator(current_sparsity, fed_round)
+        #current_sparsity = self.global_sparsity_evaluator(model)
+        amount = self._pruning_ratio_calculator(fed_round)
         
         if self.globally:
+            #mask_test = mask_evaluator(keeped_masks)
+            #print(mask_test)
             prune.global_unstructured(weight_set,
                                       pruning_method=self.pruning, 
                                       amount=amount)
-
-            # Deploy permenant pruning (remove reparametrization)
+            
             keeped_masks = mask_collector(model)
-            mask_merger(model)
-
+            
         else:
             raise NotImplementedError('Structured pruning is not implemented yet!')
             
@@ -77,26 +77,25 @@ class PruningHandler():
 
         return weight_set
     
-    def _pruning_ratio_calculator(self, current_sparsity, fed_round):
-        """Calculate pruning amount based on sparsity and round"""
-
-        amount = 0
-        target_amount = self.pruning_plan[fed_round]
-        amount = min(self.base_sparsity[fed_round] + target_amount, 0.999)
+    def _pruning_ratio_calculator(self, fed_round):
+        """
+        pruning amount based on pruning_plan
+        ![Caution] This assumes that the model has no applied mask!
+        """
+        amount = self.pruning_plan[fed_round]
 
         return amount
     
     def _planner(self, args):        
         if args.pruning:
-            assert sum(args.pruning_plan) == args.nb_rounds,\
+            assert sum(args.plan) == args.nb_rounds,\
             'plan should should be same with nb_rounds!'
             
-            pruning_plan = list_organizer(args.pruning_pack,
-                                  args.pruning_plan)
+            pruning_plan = plan_organizer(args.plan, 
+                                          args.target_sparsity, 
+                                          args.plan_type)
             
         else:
             pruning_plan = [0] * args.nb_rounds
-
-        base_sparsity = base_organizer(pruning_plan)
         
-        return pruning_plan, base_sparsity
+        return pruning_plan
