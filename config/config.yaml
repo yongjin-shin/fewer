@@ -21,7 +21,7 @@ plan_type: 'reverse'
 model: 'mnistcnn' #mlp, mnistcnn, cifarcnn, testcnn, vgg
 hidden: 256
 loss_func: 'CrossEntropy'
-lr: 0.01
+lr: 0.1
 optimizer: 'sgd'  # 'adam', 'sgd'
 momentum: 0.9
 weight_decay: 0  # 5e-4

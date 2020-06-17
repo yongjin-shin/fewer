@@ -110,7 +110,7 @@ class Server:
                                                                recovery=self.args.recovery,
                                                                r=r)
             self.server_lr_scheduler.step()
-            print(self.server_lr_scheduler.get_lr())
+            # print(self.server_lr_scheduler.get_lr())
 
             # aggregation step
             self.aggregation_models(updated_locals)
