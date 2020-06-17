@@ -175,6 +175,9 @@ class Server:
                     
                     # merge mask of local (remove masks but pruned weights are still zero)
                     mask_merger(self.locals.model)
+                
+                else:
+                    train_loss += self.locals.train()
 
             """ Sparsity """
             local_sparsity.append(self.pruning_handler.global_sparsity_evaluator(self.locals.model))
