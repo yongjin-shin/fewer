@@ -14,7 +14,10 @@ def plan_organizer(plan, target_sparsity, plan_type='base'):
     pruning_plan = []
 
     for r in range(warming_r):
-        pruning_plan.append(0)
+        if plan_type == 'reverse':
+            pruning_plan.append(target_sparsity)
+        else:
+            pruning_plan.append(0)
 
     for r in range(pruning_r):
         # gradually increase to target sparsity
