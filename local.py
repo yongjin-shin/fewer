@@ -37,7 +37,8 @@ class Local:
                 self.optim.step()
 
             # print(self.lr_scheduler._last_lr)
-            self.lr_scheduler.step()
+            # self.lr_scheduler.step()
+            # print(self.lr_scheduler.get_lr())
 
         return train_loss / ((self.args.local_ep) * (itr+1))
     
@@ -56,19 +57,19 @@ class Local:
     def get_model(self, server_model):
         self.model.load_state_dict(server_model)
 
-    def get_optim(self, server_optim, server_scheduler):
+    def get_lr(self, server_lr):
 
         self.optim = torch.optim.SGD(self.model.parameters(),
-                                     lr=self.args.lr,
+                                     lr=server_lr,
                                      momentum=self.args.momentum,
                                      weight_decay=self.args.weight_decay)
         # self.optim.load_state_dict(server_optim)  # Todo: Momentum은 제대로 안 먹힘. 이거 aggregation 할 때랑 연결 지어서 해야함.
 
-        self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=self.optim,
-                                                                       T_max=self.args.nb_rounds * self.args.local_ep,
-                                                                       eta_min=5e-6,
-                                                                       last_epoch=-1)
-        self.lr_scheduler.load_state_dict(server_scheduler)
+        # self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=self.optim,
+        #                                                                T_max=self.args.nb_rounds * self.args.local_ep,
+        #                                                                eta_min=5e-6,
+        #                                                                last_epoch=-1)
+        # self.lr_scheduler.load_state_dict(server_scheduler)
 
         # self.optim.param_groups = self.model.parameters()
         # if 'sgd' == self.args.optimizer:

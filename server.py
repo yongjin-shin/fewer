@@ -75,7 +75,7 @@ class Server:
                                             momentum=self.args.momentum,
                                             weight_decay=self.args.weight_decay)
         self.server_lr_scheduler = CosineAnnealingLR(self.server_optim,
-                                                     self.args.nb_rounds * self.args.local_ep,
+                                                     self.args.nb_rounds,
                                                      eta_min=5e-6,
                                                      last_epoch=-1)
         print(model)
@@ -109,6 +109,8 @@ class Server:
                                                                keeped_masks=global_mask,
                                                                recovery=self.args.recovery,
                                                                r=r)
+            self.server_lr_scheduler.step()
+            print(self.server_lr_scheduler.get_lr())
 
             # aggregation step
             self.aggregation_models(updated_locals)
@@ -137,8 +139,7 @@ class Server:
             self.locals.get_dataset(client_dataset=dataset)
             self.locals.get_model(server_model=model_location_switch_downloading(model=self.model,
                                                                                  args=self.args))
-            self.locals.get_optim(server_optim=copy.deepcopy(self.server_optim.state_dict()),
-                                  server_scheduler=copy.deepcopy(self.server_lr_scheduler.state_dict()))
+            self.locals.get_lr(server_lr=self.server_lr_scheduler.get_lr()[0])
 
             if recovery:
                 raise RuntimeError("We Dont need recovery step anymore!!!")
@@ -186,10 +187,10 @@ class Server:
             self.tot_comm_cost += self.init_cost * (1 - local_sparsity[-1])
             updated_locals.append(self.locals.upload_model())
 
-            if _cnt+1 == self.nb_client_per_round:
-                local_optim, local_scheduler = self.locals.upload_optim()
+            # if _cnt+1 == self.nb_client_per_round:
+            #     local_optim, local_scheduler = self.locals.upload_optim()
                 # self.server_optim.load_state_dict(local_optim)
-                self.server_lr_scheduler.load_state_dict(local_scheduler)
+                # self.server_lr_scheduler.load_state_dict(local_scheduler)
 
             self.locals.reset()
 
