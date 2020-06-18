@@ -26,6 +26,7 @@ parser.add_argument('--lr', default=0.1, type=float)
 parser.add_argument('--model', default='mnistcnn', type=str)
 parser.add_argument('--pruning_type', default='baseline', type=str)
 parser.add_argument('--plan_type', default='base', type=str)
+parser.add_argument('--decay_type', default='gradual', type=str)
 parser.add_argument('--device', default='cuda', type=str)
 additional_args = parser.parse_args()
 
@@ -58,6 +59,7 @@ def main():
     args.pruning_type = additional_args.pruning_type
     args.experiment_name= args.pruning_type
     args.plan_type = additional_args.plan_type
+    args.decay_type = additional_args.decay_type
     args.device = additional_args.device
 
     if args.pruning_type == 'server_pruning' and args.plan_type == 'reverse':
@@ -66,6 +68,14 @@ def main():
         elif args.dataset == 'cifar10':
             args.plan = [20, 260, 20]
         args.experiment_name = 'server_pruning_reverse'
+        
+    if args.pruning_type == 'local_pruning' and args.plan_type == 'reverse':
+        if args.dataset == 'mnist':
+            args.plan = [20, 110, 20]
+        elif args.dataset == 'cifar10':
+            args.plan = [20, 260, 20]
+        args.experiment_name = 'local_pruning_reverse'
+        
         #how to change other things for fair comparison??
     args.lr = additional_args.lr
 

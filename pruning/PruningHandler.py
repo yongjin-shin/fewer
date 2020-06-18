@@ -92,8 +92,10 @@ class PruningHandler():
             'plan should should be same with nb_rounds!'
             
             pruning_plan = plan_organizer(args.plan, 
-                                          args.target_sparsity, 
-                                          args.plan_type)
+                                          args.target_sparsity,
+                                          args.base_sparsity,
+                                          args.plan_type,
+                                          args.decay_type)
             
         else:
             pruning_plan = [0] * args.nb_rounds
