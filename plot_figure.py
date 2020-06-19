@@ -36,7 +36,7 @@ def main():
 
             flag = []
             for _id in df['exp_id'].unique():
-                if max(df[df['exp_id'] == _id]['ACC'].dropna().values) < 20:
+                if np.mean(df[df['exp_id'] == _id]['ACC'].dropna().values) < 20:
                     flag.append(_id)
 
             for _f in flag:
@@ -44,9 +44,8 @@ def main():
 
             dfs.append(df)
 
-        print("")
         df = pd.concat(dfs)
-        df["legend"] = "[" + df['exp_name'] + "] " + df['Legend']
+        df["Experiments"] = "[" + df['exp_name'] + "] " + df['Legend']
 
         acc_df = df[df['ACC'].notna()]
         loss_df = df[df['Loss'].notna()]
@@ -79,7 +78,8 @@ def main():
                                 plt.ylim(60, 100)
 
                     print("Make plot...")
-                    sns.lineplot(x=_x, y=ret, hue='legend', data=data)
+                    hue_order = np.sort(data['Experiments'].unique())
+                    sns.lineplot(x=_x, y=ret, hue='Experiments', hue_order=hue_order, data=data)
 
                     if 'Cost' == _x:
                         plt.xlabel(f"{_x} (Mbytes)")
@@ -88,7 +88,7 @@ def main():
 
                     plt.savefig(f"{path}/{data_type}_{_x}_{ret}_{legend}.png")
                     print("Plot saved!")
-                    plt.show()
+                    # plt.show()
                     plt.close()
 
 
