@@ -8,7 +8,7 @@ import os
 
 def main():
     p = sys.argv[-1]
-    if len(p) == 2:
+    if 'plot_figure.py' not in p:
         path = f'./log/{p}'
     else:
         path = f'./log'
