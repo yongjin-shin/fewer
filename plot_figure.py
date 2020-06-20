@@ -23,6 +23,8 @@ def main():
         print(f"Read {_dir}...")
 
         for _subdir in _dir:
+            if 'local_pruning_reverse' in _subdir:
+                continue
             df = pd.read_csv(f"{_subdir}/results.csv")
             tmp_cost = 0
             for _id in df['exp_id'].unique():
@@ -31,7 +33,7 @@ def main():
 
             tmp_cost /= len(df['exp_id'].unique())
             tmp_cost = tmp_cost.tolist()
-            tmp_cost = tmp_cost + tmp_cost + tmp_cost
+            tmp_cost = tmp_cost * len(df['exp_id'].unique())
             df['Cost'] = np.array(tmp_cost)
 
             flag = []
@@ -75,7 +77,7 @@ def main():
                             if 'mnist' == data_type:
                                 plt.ylim(80, 100)
                             else:
-                                plt.ylim(60, 100)
+                                plt.ylim(0, 100)
 
                     print("Make plot...")
                     hue_order = np.sort(data['Experiments'].unique())
