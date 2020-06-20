@@ -42,41 +42,14 @@ def main():
     args = Namespace(**args)
     # args = fix_arguments(args)
     args.model = additional_args.model
-
-    if 'mnist' in args.model:
-        args.dataset = 'mnist'
-        args.nb_rounds = 150
-        args.iid = False
-        args.plan = [0, 130, 20]
-    elif 'cifar' in args.model:
-        args.dataset = 'cifar10'
-        args.nb_rounds = 300
-        args.iid = True
-        args.plan = [0, 280, 20]
-
     args.nb_devices = additional_args.nb_devices
     args.nb_exp_reps = additional_args.nb_exp_reps
     args.pruning_type = additional_args.pruning_type
-    args.experiment_name= args.pruning_type
     args.plan_type = additional_args.plan_type
     args.decay_type = additional_args.decay_type
     args.device = additional_args.device
-
-    if args.pruning_type == 'server_pruning' and args.plan_type == 'reverse':
-        if args.dataset == 'mnist':
-            args.plan = [20, 110, 20]
-        elif args.dataset == 'cifar10':
-            args.plan = [20, 260, 20]
-        args.experiment_name = 'server_pruning_reverse'
         
-    if args.pruning_type == 'local_pruning' and args.plan_type == 'reverse':
-        if args.dataset == 'mnist':
-            args.plan = [20, 110, 20]
-        elif args.dataset == 'cifar10':
-            args.plan = [20, 260, 20]
-        args.experiment_name = 'local_pruning_reverse'
-        
-        #how to change other things for fair comparison??
+    #how to change other things for fair comparison??
     args.lr = additional_args.lr
 
     logger = Logger()

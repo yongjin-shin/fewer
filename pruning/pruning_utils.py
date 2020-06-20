@@ -6,7 +6,7 @@ from torch.nn.utils.prune import remove, CustomFromMask, is_pruned
 
 __all__ = ['plan_organizer', 'mask_collector', 'mask_adder', 'mask_merger', 'mask_evaluator']
 
-def plan_organizer(plan, target_sparsity, plan_type='base'):
+def plan_organizer(plan, target_sparsity, base_sparsity=0, plan_type='base', decay_type='gradual'):
     # unpack training plans
     warming_r, pruning_r, tuning_r = plan
     print(plan)
@@ -17,16 +17,18 @@ def plan_organizer(plan, target_sparsity, plan_type='base'):
         if plan_type == 'reverse':
             pruning_plan.append(target_sparsity)
         else:
-            pruning_plan.append(0)
+            pruning_plan.append(base_sparsity)
 
     for r in range(pruning_r):
         # gradually increase to target sparsity
         if plan_type == 'base':
-            sparsity = target_sparsity - target_sparsity * (1- (r+1)/pruning_r)**3
+            sparsity = target_sparsity - \
+            (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r, decay_type)
             
         # gradually decay from target sparsity
         elif plan_type == 'reverse':
-            sparsity = target_sparsity * (1- (r+1)/pruning_r)**3
+            sparsity = base_sparsity + \
+            (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r, decay_type)
         
         pruning_plan.append(sparsity)
 
@@ -34,7 +36,17 @@ def plan_organizer(plan, target_sparsity, plan_type='base'):
         pruning_plan.append(pruning_plan[-1])
         
     return pruning_plan
-    
+
+
+def _decay_rate(r, pruning_r, decay_type):
+    if decay_type == 'gradual':
+        ratio = (1- (r+1)/pruning_r)**3
+        
+    elif decay_type == 'linear':
+        ratio = (1- (r+1)/pruning_r)
+        
+    return ratio
+
 def mask_collector(model):
     """get current mask of model"""
     model_masks = {}
@@ -97,3 +109,6 @@ def mask_evaluator(masks):
             num_elem += val.nelement()
 
     return round(masked_elem/num_elem, 4)
+
+
+    
