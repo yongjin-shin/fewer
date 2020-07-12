@@ -1,89 +1,52 @@
+import os
 import numpy as np
 import random
 import torch
 import yaml
 import sys
+import os
 import datetime
 
 # Related Class and functions
 from server import Server
 from data import Preprocessor
-from misc import fix_arguments, read_argv
+from misc import fix_arguments
 from logger import Logger
-import argparse
-
 
 # Ignore warnings
 import warnings
 warnings.filterwarnings('ignore')
 
-parser = argparse.ArgumentParser(description='For Multiple experiments')
-
-parser.add_argument('--config_file', default='config.yaml', type=str)
-parser.add_argument('--nb_exp_reps', default=1, type=int)
-parser.add_argument('--nb_devices', default=100, type=int)
-parser.add_argument('--lr', default=0.15, type=float)
-parser.add_argument('--model', default='mnistcnn', type=str)
-parser.add_argument('--pruning_type', default='baseline', type=str)
-parser.add_argument('--plan_type',default='base',type=str)
-
-additional_args = parser.parse_args()
-
 
 def main():
-    # yaml_file = read_argv(sys.argv)
-    yaml_file = additional_args.config_file
-    try:
-        args = yaml.load(stream=open(f"config/{yaml_file}"), Loader=yaml.FullLoader)
-    except:
-        args = yaml.load(stream=open(f"config/{yaml_file}", 'rt', encoding='utf8'), Loader=yaml.FullLoader)
+    _file = sys.argv[-1]
+    if not 'main.py' in _file:
+        files = []
+        for _, _, folder in os.walk('./config/settings'):
+            for f in folder:
+                if '.yaml' in f:
+                    files.append(f'settings/{f}')
+    else:
+        files = ['config.yaml']
 
-    args = fix_arguments(args)
-    args.model = additional_args.model
+    _time = datetime.datetime.now()
+    for _file in np.sort(files):
+        try:
+            args = yaml.load(stream=open(f"config/{_file}"), Loader=yaml.FullLoader)
+        except:
+            args = yaml.load(stream=open(f"config/{_file}", 'rt', encoding='utf8'), Loader=yaml.FullLoader)
 
-    if 'mnist' in args.model:
-        args.dataset = 'mnist'
-        args.nb_rounds = 150
-        args.iid = False
-        args.plan = [0,130,20]
-    elif 'cifar' in args.model:
-        args.dataset = 'cifar10'
-        args.nb_rounds = 300
-        args.iid = True
-        args.plan = [0, 280, 20]
+        args = fix_arguments(args)
+        logger = Logger(args, _time=_time)
 
-    args.nb_devices = additional_args.nb_devices
-    args.nb_exp_reps = additional_args.nb_exp_reps
-    #pruning_type = 'server_pruning','local_pruning', 'local_pruning_half'
-    args.pruning_type = additional_args.pruning_type
-    args.experiment_name= args.pruning_type
-    args.plan_type = additional_args.plan_type
+        # 반복실험을 합니다
+        for i in range(args.nb_exp_reps):
+            model = single_experiment(args, i, logger)
+            logger.save_model(param=model.state_dict(), exp_id=i)
+            logger.plot(exp_id=i)
 
-    if args.pruning_type == 'server_pruning' and args.plan_type == 'reverse':
-        if args.dataset == 'mnist':
-            args.plan = [20,110,20]
-        elif args.dataset == 'cifar10':
-            args.plan = [20,260,20]
-        args.experiment_name = 'server_pruning_reverse'
-        #how to change other things for fair comparison??
-    args.lr = additional_args.lr
-
-    logger = Logger()
-    logger.get_args(args)
-
-
-
-    # 반복실험을 합니다
-    for i in range(args.nb_exp_reps):
-        model = single_experiment(args, i, logger)
-        logger.save_model(param=model.state_dict(), exp_id=i)
-        logger.plot(exp_id=i)
-
-    # 결과를 저장합니다
-    logger.save_data()
-    logger.save_yaml()
-
-    # logger.global_plot(files)
+        # 결과를 저장합니다
+        logger.save_data()
 
 
 def single_experiment(args, i, logger):

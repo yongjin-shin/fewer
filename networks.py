@@ -3,7 +3,7 @@ import torch
 
 
 def create_nets(args, location):
-    print(f"{location}: ", end="", flush=True)
+    print(f"{location}: ", end=" ")
 
     if 'mnist' in args.dataset:
         _in_dim = 1
