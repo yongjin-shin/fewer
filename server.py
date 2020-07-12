@@ -121,7 +121,6 @@ class Server:
                                                                recovery=self.args.recovery,
                                                                r=r)
             self.server_lr_scheduler.step()
-            # print(self.server_lr_scheduler.get_lr())
 
             # aggregation step
             self.aggregation_models(updated_locals)
@@ -137,9 +136,9 @@ class Server:
             end_time = time.time()
             ellapsed_time = end_time - start_time
             self.logger.get_results(Results(train_loss.item(), test_loss, test_acc, current_sparsity*100, self.tot_comm_cost, r, exp_id,
-                                            ellapsed_time, self.server_lr_scheduler.get_lr()[0]))
+                                            ellapsed_time, self.server_lr_scheduler.get_last_lr()[0]))
             print('==================================================')
-            
+
         return self.container, self.model
 
     def clients_training(self, clients_dataset, r, keeped_masks=None, recovery=False):
@@ -150,7 +149,7 @@ class Server:
             self.locals.get_dataset(client_dataset=dataset)
             self.locals.get_model(server_model=model_location_switch_downloading(model=self.model,
                                                                                  args=self.args))
-            self.locals.get_lr(server_lr=self.server_lr_scheduler.get_lr()[0])
+            self.locals.get_lr(server_lr=self.server_lr_scheduler.get_last_lr()[0])
 
             if recovery:
                 raise RuntimeError("We Dont need recovery step anymore!!!")

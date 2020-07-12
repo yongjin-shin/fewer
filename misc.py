@@ -2,56 +2,52 @@ import seaborn as sns; sns.set()
 import torch
 from argparse import Namespace
 import copy
-import os
-import math
-from pathlib import Path
-from sys import getsizeof
+import yaml
+import argparse
 
 
-def read_argv(*argv):
-    argv = argv[0]
-    if len(argv) < 2:
-        raise RuntimeError("Please write proper config file name! e.g. python main.py config.yaml")
-    else:
-        if '.yaml' in argv[-1]:
-            return argv[-1]
-        else:
-            raise RuntimeError("Please write proper config file name! e.g. python main.py config.yaml")
+def read_argv():
+    parser = argparse.ArgumentParser(description='For Multiple experiments')
+    parser.add_argument('--config_file', default='config.yaml', type=str)
+    parser.add_argument('--nb_exp_reps', type=int)
+    parser.add_argument('--nb_devices', type=int)
+    parser.add_argument('--lr', type=float)
+    parser.add_argument('--model', type=str)
+    parser.add_argument('--pruning_type', type=str)
+    parser.add_argument('--plan_type', type=str)
+    parser.add_argument('--decay_type', type=str)
+    parser.add_argument('--device', type=str)
+    parser.add_argument('--scheduler', type=str)
+    parser.add_argument('--target_sparsity', type=float)
+    additional_args = parser.parse_args()
 
-    # if not 'main.py' in _file:
-    #     files = []
-    #     for _, _, folder in os.walk(f'./config/{_file}'):
-    #         for f in folder:
-    #             if '.yaml' in f and not 'check' in folder:
-    #                 files.append(f'{_file}/{f}')
-    # else:
-    #     files = ['config.yaml']
-    #
-    # folders = {}
-    # for file in files:
-    #     tmp = file[9:12]
-    #     if tmp in folders:
-    #         pass
-    #     else:
-    #         folders[tmp] = [f for f in files if tmp in f]
+    yaml_file = additional_args.config_file
+    try:
+        args = yaml.load(stream=open(f"config/{yaml_file}"), Loader=yaml.FullLoader)
+    except:
+        args = yaml.load(stream=open(f"config/{yaml_file}", 'rt', encoding='utf8'), Loader=yaml.FullLoader)
 
-    # if len(folders) > 0:
-    #     for _f in folders:
-    #         Path(f'./log/{time}/{_f}').mkdir(parents=True, exist_ok=True)
-
-    # return files, folders
-
-
-def fix_arguments(args):
     args = Namespace(**args)
-
-    if args.gpu:
-        # args.device = torch.device("cuda:1")
-        args.device = torch.device("cuda")
-    else:
-        args.device = torch.device("cpu")
+    args.nb_devices = additional_args.nb_devices if additional_args.nb_devices is not None else args.nb_devices
+    args.nb_exp_reps = additional_args.nb_exp_reps if additional_args.nb_exp_reps is not None else args.nb_exp_reps
+    args.pruning_type = additional_args.pruning_type if additional_args.pruning_type is not None else args.pruning_type
+    args.plan_type = additional_args.plan_type if additional_args.plan_type is not None else args.plan_type
+    args.decay_type = additional_args.decay_type if additional_args.decay_type is not None else args.decay_type
+    args.scheduler = additional_args.scheduler if additional_args.scheduler is not None else args.scheduler
+    args.target_sparsity = additional_args.target_sparsity if additional_args.target_sparsity is not None else args.target_sparsity
+    args.lr = additional_args.lr if additional_args.lr is not None else args.lr
+    args.experiment_name = make_exp_name(args)
+    args.device = additional_args.device if additional_args.device is not None else get_device(args)
 
     return args
+
+
+def get_device(args):
+    return 'cuda:0' if args.gpu else 'cpu'
+
+
+def make_exp_name(args):
+    return f"{args.pruning_type}_{args.plan_type}_{args.target_sparsity}_{args.scheduler}_{args.lr}"
 
 
 def model_location_switch_downloading(model, args):
@@ -122,7 +118,7 @@ class LinearLR:
         tot_diff = init_lr - eta_min
         self.diff = tot_diff / (epoch-1)
 
-    def get_lr(self):
+    def get_last_lr(self):
         return [self.crnt_lr]
 
     def step(self):
