@@ -9,7 +9,7 @@ from local import Local
 from aggregation import get_aggregation_func
 from pruning import *
 from networks import create_nets
-from misc import model_location_switch_downloading, mask_location_switch, get_size
+from misc import model_location_switch_downloading, mask_location_switch, get_size, ConstantLR, LinearLR
 from logger import Results
 import gc
 import time
@@ -43,6 +43,7 @@ class Server:
         self.model = None
         self.init_cost = 0
         self.make_model()
+        self.make_opt()
 
         # misc
         self.container = []
@@ -57,6 +58,7 @@ class Server:
 
     def make_model(self):
         model = create_nets(self.args, 'SERVER')
+        print(model)
 
         if self.args.server_location == 'gpu':
             if self.args.gpu:
@@ -70,15 +72,24 @@ class Server:
 
         self.init_cost = get_size(self.model.parameters())
 
+    def make_opt(self):
         self.server_optim = torch.optim.SGD(self.model.parameters(),
                                             lr=self.args.lr,
                                             momentum=self.args.momentum,
                                             weight_decay=self.args.weight_decay)
-        self.server_lr_scheduler = CosineAnnealingLR(self.server_optim,
-                                                     self.args.nb_rounds,
-                                                     eta_min=5e-6,
-                                                     last_epoch=-1)
-        print(model)
+        if 'cosine' == self.args.scheduler:
+            self.server_lr_scheduler = CosineAnnealingLR(self.server_optim,
+                                                         self.args.nb_rounds,
+                                                         eta_min=5e-6,
+                                                         last_epoch=-1)
+        elif 'linear' == self.args.scheduler:
+            self.server_lr_scheduler = LinearLR(self.args.lr,
+                                                self.args.nb_rounds,
+                                                eta_min=5e-6)
+        elif 'constant' == self.args.scheduler:
+            self.server_lr_scheduler = ConstantLR(self.args.lr)
+        else:
+            raise NotImplementedError
 
     def train(self, exp_id=None):
 
@@ -126,7 +137,7 @@ class Server:
             end_time = time.time()
             ellapsed_time = end_time - start_time
             self.logger.get_results(Results(train_loss.item(), test_loss, test_acc, current_sparsity*100, self.tot_comm_cost, r, exp_id,
-                                            ellapsed_time, self.server_lr_scheduler.get_last_lr()[0]))
+                                            ellapsed_time, self.server_lr_scheduler.get_lr()[0]))
             print('==================================================')
             
         return self.container, self.model
@@ -186,12 +197,6 @@ class Server:
             """ Uploading """
             self.tot_comm_cost += self.init_cost * (1 - local_sparsity[-1])
             updated_locals.append(self.locals.upload_model())
-
-            # if _cnt+1 == self.nb_client_per_round:
-            #     local_optim, local_scheduler = self.locals.upload_optim()
-                # self.server_optim.load_state_dict(local_optim)
-                # self.server_lr_scheduler.load_state_dict(local_scheduler)
-
             self.locals.reset()
 
         train_loss /= (_cnt+1)

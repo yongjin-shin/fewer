@@ -12,10 +12,10 @@ pruning: True
 pruning_type: 'server_pruning'
 recovery: False
 
-plan: [20, 260, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
+plan: [20, 280, 0] # [warming_rounds, pruning_rounds, tuning_rounds]
 target_sparsity: 0.9
 base_sparsity: 0.0
-plan_type: 'reverse'
+plan_type: 'base'
 decay_type: 'linear'
 
 
@@ -31,11 +31,11 @@ weight_decay: 0  # 5e-4
 
 # dataset arguments
 dataset: 'cifar10' # mnist, fmnist, cifar10
-iid: True  # True, False
+iid: False  # True, False
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
 # misc
-experiment_name: 'reverse_linear_warm_fine'
+experiment_name: 'None'
 gpu: True  # True, False | check :: misc.py >> function[fix_arguments]
 server_location: 'cpu'  # gpu, cpu, save
 seed: 100

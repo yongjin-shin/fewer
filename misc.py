@@ -102,45 +102,29 @@ def get_size(param):
     return round(size/1024/1024, 2)
 
 
-class Scheduler:
-    def __init__(self, max_iter, init_lr, end_lr):
-        self.max_iter = max_iter
+class ConstantLR:
+    def __init__(self, init_lr):
         self.init_lr = init_lr
-        self.end_lr = end_lr
-        self.lr = init_lr
+        self.crnt_lr = self.init_lr
 
-    def get_lr(self, _iter):
-        if self.last_epoch == 0:
-            return self.base_lrs
-        elif (self.last_epoch - 1 - self.T_max) % (2 * self.T_max) == 0:
-            return [group['lr'] + (base_lr - self.eta_min) *
-                    (1 - math.cos(math.pi / self.T_max)) / 2
-                    for base_lr, group in
-                    zip(self.base_lrs, self.optimizer.param_groups)]
-        return [(1 + math.cos(math.pi * self.last_epoch / self.T_max)) /
-                (1 + math.cos(math.pi * (self.last_epoch - 1) / self.T_max)) *
-                (group['lr'] - self.eta_min) + self.eta_min
-                for group in self.optimizer.param_groups]
+    def get_lr(self):
+        return [self.crnt_lr]
 
-# 반복실험 결과 저장
-# def save_results(path, args, all_exps):
-#     all_exps = np.concatenate(all_exps)
-#     np.save(f'{path}/data_{args.dataset}_allexps.npy', all_exps)
-#     plot_graph(args, all_exps, path)
+    def step(self):
+        pass
 
 
-# 반복실험 결과 plot
-# def plot_graph(args, data, path):
-#     cols = ['loss_train', 'loss_test', 'acc_test', 'round', 'exp']
-#     df = pd.DataFrame(data, columns=cols)
-#     for c in cols[:-2]:
-#         plt.plot(df['round'], df[c])
-#         if 'acc' in c:
-#             plt.ylim(60,100)
-#         elif 'loss' in c:
-#             plt.ylim(0,0.3)
-#         plt.title(f'Dataset: {args.dataset} | {c}')
-#         plt.savefig(f'{path}/data_{args.dataset}_{c}.png')
-#         print(f"saved {path}/data_{args.dataset}_{c}.png")
-#         plt.show()
-#         plt.close()
+class LinearLR:
+    def __init__(self, init_lr, epoch, eta_min):
+        self.init_lr = init_lr
+        self.crnt_lr = init_lr
+
+        tot_diff = init_lr - eta_min
+        self.diff = tot_diff / (epoch-1)
+
+    def get_lr(self):
+        return [self.crnt_lr]
+
+    def step(self):
+        self.crnt_lr -= self.diff
+
