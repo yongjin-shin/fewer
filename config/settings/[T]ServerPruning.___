@@ -14,16 +14,14 @@ recovery: False
 
 plan: [0, 100, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
 target_sparsity: 0.9
-base_sparsity: 0.0
-plan_type: 'reverse'
-decay_type: 'gradual'
+plan_type: 'base'
 
 
 # model arguments
-model: 'mnistcnn' #mlp, mnistcnn, cifarcnn, testcnn, vgg
+model: 'testcnn' #mlp, mnistcnn, cifarcnn, testcnn, vgg
 hidden: 256
 loss_func: 'CrossEntropy'
-lr: 0.1
+lr: 0.01
 optimizer: 'sgd'  # 'adam', 'sgd'
 momentum: 0.9
 weight_decay: 0  # 5e-4
@@ -35,7 +33,7 @@ iid: False  # True, False
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
 # misc
-experiment_name: 'server_pruning_reverse'
+experiment_name: 'server_pruning'
 gpu: True  # True, False | check :: misc.py >> function[fix_arguments]
 server_location: 'cpu'  # gpu, cpu, save
 seed: 100

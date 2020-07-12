@@ -1,5 +1,5 @@
 # federated arguments
-nb_rounds: 80  # communication rounds
+nb_rounds: 120  # communication rounds
 nb_devices: 200  # 로컬 클라이언트 수
 nb_server_data: 0  # 서버가 지니고 있는 데이터 개수
 local_ep: 5  # 로컬 모델 update 횟수
@@ -9,15 +9,16 @@ aggregation_alg: 'fedavg' # aggregtion algorithm
 
 # fedPR arguments
 pruning: True
-pruning_type: 'local_pruning'
+pruning_type: 'server_pruning'
 recovery: False
 
-pruning_pack: [0.015, 0.01, 0.005]
-pruning_plan: [40, 20, 20]
+plan: [0, 100, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
+target_sparsity: 0.9
+plan_type: 'reverse'
 
 
 # model arguments
-model: 'mnistcnn' #mlp, mnistcnn, cifarcnn, testcnn, vgg
+model: 'testcnn' #mlp, mnistcnn, cifarcnn, testcnn, vgg
 hidden: 256
 loss_func: 'CrossEntropy'
 lr: 0.01
@@ -32,9 +33,9 @@ iid: False  # True, False
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
 # misc
-experiment_name: 'local_pruning'
+experiment_name: 'server_pruning_reverse'
 gpu: True  # True, False | check :: misc.py >> function[fix_arguments]
 server_location: 'cpu'  # gpu, cpu, save
 seed: 100
-nb_exp_reps: 1  # 반복실험 횟수
+nb_exp_reps: 3  # 반복실험 횟수
 

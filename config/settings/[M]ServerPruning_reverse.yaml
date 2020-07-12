@@ -14,16 +14,14 @@ recovery: False
 
 plan: [0, 100, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
 target_sparsity: 0.9
-base_sparsity: 0.0
 plan_type: 'reverse'
-decay_type: 'gradual'
 
 
 # model arguments
 model: 'mnistcnn' #mlp, mnistcnn, cifarcnn, testcnn, vgg
 hidden: 256
 loss_func: 'CrossEntropy'
-lr: 0.1
+lr: 0.01
 optimizer: 'sgd'  # 'adam', 'sgd'
 momentum: 0.9
 weight_decay: 0  # 5e-4

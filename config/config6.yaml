@@ -1,6 +1,6 @@
 # federated arguments
-nb_rounds: 120  # communication rounds
-nb_devices: 200  # 로컬 클라이언트 수
+nb_rounds: 300  # communication rounds
+nb_devices: 100  # 로컬 클라이언트 수
 nb_server_data: 0  # 서버가 지니고 있는 데이터 개수
 local_ep: 5  # 로컬 모델 update 횟수
 local_bs: 50  # 로컬 Training Batch Size
@@ -12,15 +12,15 @@ pruning: True
 pruning_type: 'server_pruning'
 recovery: False
 
-plan: [0, 100, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
+plan: [20, 260, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
 target_sparsity: 0.9
 base_sparsity: 0.0
-plan_type: 'reverse'
-decay_type: 'gradual'
+plan_type: 'base'
+decay_type: 'linear'
 
 
 # model arguments
-model: 'mnistcnn' #mlp, mnistcnn, cifarcnn, testcnn, vgg
+model: 'cifarcnn' #mlp, mnistcnn, cifarcnn, testcnn, vgg
 hidden: 256
 loss_func: 'CrossEntropy'
 lr: 0.1
@@ -30,12 +30,12 @@ weight_decay: 0  # 5e-4
 
 
 # dataset arguments
-dataset: 'mnist' # mnist, fmnist, cifar10
+dataset: 'cifar10' # mnist, fmnist, cifar10
 iid: False  # True, False
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
 # misc
-experiment_name: 'server_pruning_reverse'
+experiment_name: 'None'
 gpu: True  # True, False | check :: misc.py >> function[fix_arguments]
 server_location: 'cpu'  # gpu, cpu, save
 seed: 100
