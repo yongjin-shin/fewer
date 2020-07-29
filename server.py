@@ -9,7 +9,7 @@ from local import Local
 from aggregation import get_aggregation_func
 from pruning import *
 from networks import create_nets
-from misc import model_location_switch_downloading, mask_location_switch, get_size, ConstantLR, LinearLR
+from misc import model_location_switch_downloading, mask_location_switch, get_size, ConstantLR, LinearLR, LinearStepLR
 from logger import Results
 import gc
 import time
@@ -88,6 +88,12 @@ class Server:
                                                 eta_min=5e-6)
         elif 'constant' == self.args.scheduler:
             self.server_lr_scheduler = ConstantLR(self.args.lr)
+        elif 'step' == self.args.scheduler:
+            self.server_lr_scheduler = LinearStepLR(optimizer=self.server_optim,
+                                                    init_lr=self.args.lr,
+                                                    epoch=self.args.nb_rounds,
+                                                    eta_min=5e-6,
+                                                    decay_rate=0.5)
         else:
             raise NotImplementedError
 

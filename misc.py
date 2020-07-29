@@ -1,9 +1,10 @@
 import seaborn as sns; sns.set()
-import torch
+from torch.optim.lr_scheduler import StepLR
 from argparse import Namespace
 import copy
 import yaml
 import argparse
+from math import log
 
 
 def read_argv():
@@ -47,7 +48,10 @@ def get_device(args):
 
 
 def make_exp_name(args):
-    return f"{args.pruning_type}_{args.plan_type}_{args.target_sparsity}_{args.scheduler}_{args.lr}"
+    if args.pruning:
+        return f"{args.pruning_type}_{args.plan_type}_{args.target_sparsity}_{args.scheduler}_{args.lr}"
+    else:
+        return f"vanilla_lr_{args.scheduler}_{args.lr}"
 
 
 def model_location_switch_downloading(model, args):
@@ -124,3 +128,16 @@ class LinearLR:
     def step(self):
         self.crnt_lr -= self.diff
 
+
+class LinearStepLR:
+    def __init__(self, optimizer, init_lr, epoch, eta_min, decay_rate):
+        n = int((log(eta_min) - log(init_lr))/log(decay_rate)) + 1
+        step_size = int(epoch/n)
+        self.scheduler = StepLR(optimizer=optimizer, gamma=decay_rate,
+                                step_size=step_size)
+
+    def get_last_lr(self):
+        return self.scheduler.get_last_lr()
+
+    def step(self):
+        self.scheduler.step()
