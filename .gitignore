@@ -4,3 +4,4 @@ __pycache__/
 log/
 dataset/
 *.un~
+*.sh

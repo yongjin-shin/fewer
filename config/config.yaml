@@ -37,6 +37,7 @@ nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 �
 
 # misc
 gpu: True  # True, False
+cuda_type: 0  # 0, 1
 server_location: 'cpu'  # gpu, cpu
 seed: 100
 nb_exp_reps: 3  # 반복실험 횟수

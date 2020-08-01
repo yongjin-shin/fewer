@@ -35,7 +35,7 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(dim_in, dim_hidden)
         self.elu = nn.ELU()
-        self.dropout = nn.Dropout(0.2)
+        # self.dropout = nn.Dropout(0.2)
         self.fc2 = nn.Linear(dim_hidden, dim_out)
         self.LogSoftmax = nn.LogSoftmax(dim=1)
         print("MLP was made")
@@ -43,7 +43,7 @@ class MLP(nn.Module):
     def forward(self, x):
         x = x.view((x.size()[0], -1))
         x = self.fc1(x)
-        x = self.dropout(x)
+        # x = self.dropout(x)
         x = self.elu(x)
         x = self.LogSoftmax(self.fc2(x))
         return x
