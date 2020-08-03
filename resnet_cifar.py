@@ -44,10 +44,10 @@ class Block(nn.Module):
             self.conv1 = conv1x1(inplanes, width)
             self.conv2 = conv3x3(width, width, stride, groups, dilation)
             self.conv3 = conv1x1(width, planes * self.expansion)
-            self.bn3 = norm_layer(planes * self.expansion)
+            #self.bn3 = norm_layer(planes * self.expansion)
             
-        self.bn1 = norm_layer(width)
-        self.bn2 = norm_layer(width)
+        #self.bn1 = norm_layer(width)
+        #self.bn2 = norm_layer(width)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         
@@ -55,16 +55,16 @@ class Block(nn.Module):
         identity = x
         
         out = self.conv1(x)
-        out = self.bn1(out)
+        #out = self.bn1(out)
         out = self.relu(out)
         
         out = self.conv2(out)
-        out = self.bn2(out)
+        #out = self.bn2(out)
         if self.block_type == 'bottleneck':
             out = self.relu(out)
             
             out = self.conv3(out)
-            out = self.bn3(out)
+            #out = self.bn3(out)
             
         if self.downsample is not None:
             identity = self.downsample(x)
@@ -101,7 +101,7 @@ class ResNet(nn.Module):
         
         self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1,
                                bias=False)
-        self.bn1 = norm_layer(self.inplanes)
+        #self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         
         planes = [128, 256, 512]
@@ -163,7 +163,7 @@ class ResNet(nn.Module):
     
     def conv_stem(self, x):
         x = self.conv1(x)
-        x = self.bn1(x)
+        #x = self.bn1(x)
         x = self.relu(x)
         
         return x
