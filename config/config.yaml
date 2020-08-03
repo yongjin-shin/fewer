@@ -9,7 +9,7 @@ aggregation_alg: 'fedavg' # aggregtion algorithm
 
 # fedPR arguments
 pruning: False
-pruning_type: 'server_pruning'
+pruning_type: 'none'
 recovery: False
 
 plan: [0, 130, 20] # [warming_rounds, pruning_rounds, tuning_rounds]

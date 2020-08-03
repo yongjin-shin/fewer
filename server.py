@@ -34,7 +34,7 @@ class Server:
         self.test_loader = None
 
         # about optimization
-        self.loss_func = torch.nn.NLLLoss(reduction='mean')
+        self.criterion = torch.nn.CrossEntropyLoss()
         self.aggregate_model_func = get_aggregation_func(self.args.aggregation_alg)
         self.server_optim = None
         self.server_lr_scheduler = None
@@ -88,6 +88,7 @@ class Server:
                                                 eta_min=5e-6)
         elif 'constant' == self.args.scheduler:
             self.server_lr_scheduler = ConstantLR(self.args.lr)
+            
         elif 'step' == self.args.scheduler:
             self.server_lr_scheduler = LinearStepLR(optimizer=self.server_optim,
                                                     init_lr=self.args.lr,
@@ -107,9 +108,9 @@ class Server:
             print(f'Epoch [{exp_id}: {r+1}/{self.args.nb_rounds}]', end='')
 
             # global pruning step
-            if self.args.pruning_type == 'server_pruning':
-                self.model, global_mask = self.pruning_handler.pruner(self.model, r)
-                mask_merger(self.model)
+            #if self.args.pruning_type == 'server_pruning':
+            #    self.model, global_mask = self.pruning_handler.pruner(self.model, r)
+            #    mask_merger(self.model)
                 
             # distribution step
             current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
@@ -216,11 +217,13 @@ class Server:
     def test(self):
         self.model.to(self.args.device).eval()
         test_loss, correct, itr = 0, 0, 0
-        for itr, (x, y) in enumerate(self.test_loader):
-            logprobs = self.model(x.to(self.args.device))
-            test_loss += self.loss_func(logprobs, y.to(self.args.device)).item()
-            y_pred = torch.argmax(torch.exp(logprobs), dim=1)
-            correct += torch.sum(y_pred.view(-1) == y.to(self.args.device).view(-1)).cpu().item()
+        for itr, (data, target) in enumerate(self.test_loader):
+            data = data.to(self.args.device)
+            target = target.to(self.args.device)
+            output = self.model(data)
+            test_loss += self.criterion(output, target).item()
+            y_pred = torch.max(output, dim=1)[1]
+            correct += torch.sum(y_pred.view(-1) == target.to(self.args.device).view(-1)).cpu().item()
 
         self.model.to(self.args.device).train()
         return test_loss / (itr + 1), 100 * float(correct) / float(self.len_test_data)

@@ -1,6 +1,7 @@
 import copy
 import torch
 from torch.utils.data import DataLoader
+import torch.nn as nn
 from pruning import *
 from networks import create_nets
 from misc import model_location_switch_uploading
@@ -18,23 +19,25 @@ class Local:
         if 'adam' == self.args.optimizer:
             raise NotImplementedError
 
-        self.loss_func = torch.nn.NLLLoss(reduction='mean')
+        self.criterion = nn.CrossEntropyLoss()
         self.epochs = self.args.local_ep
 
     def train(self):
         train_loss, itr, ep = 0, 0, 0
         
         for ep in range(self.epochs):            
-            for itr, (x, y) in enumerate(self.data_loader):
+            for itr, (data, target) in enumerate(self.data_loader):
+                data = data.to(self.args.device)
+                target = target.to(self.args.device)
+                
                 self.optim.zero_grad()
 
-                logprobs = self.model(x.to(self.args.device))
-                loss = self.loss_func(logprobs, y.to(self.args.device))
+                output = self.model(data)
+                loss = self.criterion(output, target)
                 loss.backward()
+                self.optim.step()
 
                 train_loss += loss
-
-                self.optim.step()
 
         return train_loss / ((self.args.local_ep) * (itr+1))
     

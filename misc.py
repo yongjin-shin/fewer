@@ -70,7 +70,7 @@ def make_exp_name(args):
     else:
         title = "vanilla_lr_"
 
-    return title + f"{args.scheduler}_{args.lr}_localep_{args.local_ep}"
+    return title + f"{args.scheduler}_{args.lr}_localep_{args.local_ep}_wd_{args.weight_decay}"
 
 
 def model_location_switch_downloading(model, args):
@@ -127,6 +127,9 @@ class ConstantLR:
         self.crnt_lr = self.init_lr
 
     def get_lr(self):
+        return [self.crnt_lr]
+    
+    def get_last_lr(self):
         return [self.crnt_lr]
 
     def step(self):
