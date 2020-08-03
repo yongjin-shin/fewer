@@ -23,7 +23,7 @@ decay_type: 'gradual'
 model: 'mlp' #mlp, deep_mlp, mnistcnn, cifarcnn, testcnn, vgg
 hidden: 256
 loss_func: 'CrossEntropy'
-lr: 0.03
+lr: 0.01
 optimizer: 'sgd'  # 'adam', 'sgd'
 momentum: 0.9
 weight_decay: 0.0005
