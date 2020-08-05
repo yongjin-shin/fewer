@@ -9,7 +9,7 @@ from local import Local
 from aggregation import get_aggregation_func
 from pruning import *
 from networks import create_nets
-from misc import model_location_switch_downloading, mask_location_switch, get_size, ConstantLR, LinearLR
+from misc import model_location_switch_downloading, mask_location_switch, get_size, ConstantLR, LinearLR, LinearStepLR
 from logger import Results
 import gc
 import time
@@ -88,6 +88,12 @@ class Server:
                                                 eta_min=5e-6)
         elif 'constant' == self.args.scheduler:
             self.server_lr_scheduler = ConstantLR(self.args.lr)
+        elif 'step' == self.args.scheduler:
+            self.server_lr_scheduler = LinearStepLR(optimizer=self.server_optim,
+                                                    init_lr=self.args.lr,
+                                                    epoch=self.args.nb_rounds,
+                                                    eta_min=5e-6,
+                                                    decay_rate=0.5)
         else:
             raise NotImplementedError
 
@@ -98,7 +104,7 @@ class Server:
         for r in range(self.args.nb_rounds):
             start_time = time.time()
             print('==================================================')
-            print(f'Epoch [{r+1}/{self.args.nb_rounds}]')
+            print(f'Epoch [{exp_id}: {r+1}/{self.args.nb_rounds}]', end='')
 
             # global pruning step
             if self.args.pruning_type == 'server_pruning':
@@ -107,7 +113,7 @@ class Server:
                 
             # distribution step
             current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
-            print(f'Downloading Sparsity : {current_sparsity:.4f}')
+            print(f'Down Spars : {current_sparsity:.3f}', end=' ')
             self.tot_comm_cost += self.init_cost * (1-current_sparsity) * self.nb_client_per_round
 
             # Sample Clients
@@ -137,7 +143,6 @@ class Server:
             ellapsed_time = end_time - start_time
             self.logger.get_results(Results(train_loss.item(), test_loss, test_acc, current_sparsity*100, self.tot_comm_cost, r, exp_id,
                                             ellapsed_time, self.server_lr_scheduler.get_last_lr()[0]))
-            print('==================================================')
 
         return self.container, self.model
 
@@ -199,7 +204,7 @@ class Server:
             self.locals.reset()
 
         train_loss /= (_cnt+1)
-        print(f'Avg Uploading Sparsity : {round(sum(local_sparsity)/len(local_sparsity), 4):.4f}')
+        print(f'Avg Up Spars : {round(sum(local_sparsity)/len(local_sparsity), 4):.3f}')
 
         return train_loss, updated_locals
 

@@ -1,9 +1,10 @@
 import seaborn as sns; sns.set()
-import torch
+from torch.optim.lr_scheduler import StepLR
 from argparse import Namespace
 import copy
 import yaml
 import argparse
+from math import log
 
 
 def read_argv():
@@ -11,6 +12,7 @@ def read_argv():
     parser.add_argument('--config_file', default='config.yaml', type=str)
     parser.add_argument('--nb_exp_reps', type=int)
     parser.add_argument('--nb_devices', type=int)
+    parser.add_argument('--nb_rounds', type=int)
     parser.add_argument('--lr', type=float)
     parser.add_argument('--model', type=str)
     parser.add_argument('--pruning_type', type=str)
@@ -19,6 +21,10 @@ def read_argv():
     parser.add_argument('--device', type=str)
     parser.add_argument('--scheduler', type=str)
     parser.add_argument('--target_sparsity', type=float)
+    parser.add_argument('--local_ep', type=int)
+    parser.add_argument('--cuda_type', type=int)
+    parser.add_argument('--weight_decay', type=float)
+    parser.add_argument('--dataset', type=str)
     additional_args = parser.parse_args()
 
     yaml_file = additional_args.config_file
@@ -30,24 +36,41 @@ def read_argv():
     args = Namespace(**args)
     args.nb_devices = additional_args.nb_devices if additional_args.nb_devices is not None else args.nb_devices
     args.nb_exp_reps = additional_args.nb_exp_reps if additional_args.nb_exp_reps is not None else args.nb_exp_reps
+    args.nb_rounds = additional_args.nb_rounds if additional_args.nb_rounds is not None else args.nb_rounds
     args.pruning_type = additional_args.pruning_type if additional_args.pruning_type is not None else args.pruning_type
     args.plan_type = additional_args.plan_type if additional_args.plan_type is not None else args.plan_type
     args.decay_type = additional_args.decay_type if additional_args.decay_type is not None else args.decay_type
     args.scheduler = additional_args.scheduler if additional_args.scheduler is not None else args.scheduler
     args.target_sparsity = additional_args.target_sparsity if additional_args.target_sparsity is not None else args.target_sparsity
     args.lr = additional_args.lr if additional_args.lr is not None else args.lr
-    args.experiment_name = make_exp_name(args)
     args.device = additional_args.device if additional_args.device is not None else get_device(args)
+    args.local_ep = additional_args.local_ep if additional_args.local_ep is not None else args.local_ep
+    args.cuda_type = additional_args.cuda_type if additional_args.cuda_type is not None else args.cuda_type
+    args.weight_decay = additional_args.weight_decay if additional_args.weight_decay is not None else args.weight_decay
+    args.dataset = additional_args.dataset if additional_args.dataset is not None else args.dataset
+    args.model = additional_args.model if additional_args.model is not None else args.model
 
+    args.experiment_name = make_exp_name(args)
     return args
 
 
 def get_device(args):
-    return 'cuda:0' if args.gpu else 'cpu'
+    if args.gpu:
+        if args.cuda_type:
+            return 'cuda:1'
+        else:
+            return 'cuda:0'
+    else:
+        return 'cpu'
 
 
 def make_exp_name(args):
-    return f"{args.pruning_type}_{args.plan_type}_{args.target_sparsity}_{args.scheduler}_{args.lr}"
+    if args.pruning:
+        title = f"{args.pruning_type}_{args.plan_type}_{args.target_sparsity}_lr_"
+    else:
+        title = "vanilla_lr_"
+
+    return title + f"{args.scheduler}_{args.lr}_localep_{args.local_ep}"
 
 
 def model_location_switch_downloading(model, args):
@@ -124,3 +147,16 @@ class LinearLR:
     def step(self):
         self.crnt_lr -= self.diff
 
+
+class LinearStepLR:
+    def __init__(self, optimizer, init_lr, epoch, eta_min, decay_rate):
+        n = int((log(eta_min) - log(init_lr))/log(decay_rate)) + 1
+        step_size = int(epoch/n)
+        self.scheduler = StepLR(optimizer=optimizer, gamma=decay_rate,
+                                step_size=step_size)
+
+    def get_last_lr(self):
+        return self.scheduler.get_last_lr()
+
+    def step(self):
+        self.scheduler.step()
