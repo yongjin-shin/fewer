@@ -14,8 +14,6 @@ def create_nets(args, location):
 
     if args.model == 'mlp':
         model = MLP(784, args.hidden, 10)
-    elif args.model == 'deep_mlp':
-        model = DeepMLP(784, args.hidden, 10)
     elif args.model == 'mnistcnn':
         model = MnistCNN(1, 10)
     elif args.model == 'cifarcnn':
@@ -35,45 +33,17 @@ class MLP(nn.Module):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(dim_in, dim_hidden)
         self.elu = nn.ELU()
-        # self.dropout = nn.Dropout(0.2)
+        self.dropout = nn.Dropout(0.2)
         self.fc2 = nn.Linear(dim_hidden, dim_out)
         self.LogSoftmax = nn.LogSoftmax(dim=1)
-        print("MLP was made")
+        print("\nMLP was made")
 
     def forward(self, x):
         x = x.view((x.size()[0], -1))
         x = self.fc1(x)
-        # x = self.dropout(x)
+        x = self.dropout(x)
         x = self.elu(x)
         x = self.LogSoftmax(self.fc2(x))
-        return x
-
-
-class DeepMLP(nn.Module):
-    def __init__(self, dim_in, dim_hidden, dim_out):
-        super(DeepMLP, self).__init__()
-        self.fc1 = nn.Linear(dim_in, 1024)
-        self.fc2 = nn.Linear(1024, 512)
-        self.fc3 = nn.Linear(512, dim_hidden)
-        self.fc4 = nn.Linear(dim_hidden, 128)
-        self.fc5 = nn.Linear(128, 64)
-        self.fc6 = nn.Linear(64, 32)
-        self.fc7 = nn.Linear(32, 16)
-        self.fc8 = nn.Linear(16, dim_out)
-        self.elu = nn.ELU()
-        self.LogSoftmax = nn.LogSoftmax(dim=1)
-        print("DeepMLP was made")
-
-    def forward(self, x):
-        x = x.view((x.size()[0], -1))
-        x = self.elu(self.fc1(x))
-        x = self.elu(self.fc2(x))
-        x = self.elu(self.fc3(x))
-        x = self.elu(self.fc4(x))
-        x = self.elu(self.fc5(x))
-        x = self.elu(self.fc6(x))
-        x = self.elu(self.fc7(x))
-        x = self.LogSoftmax(self.fc8(x))
         return x
 
 
@@ -89,7 +59,7 @@ class MnistCNN(nn.Module):
         self.fc2 = nn.Linear(512, dim_out)
         self.relu = nn.ReLU()
         self.LogSoftmax = nn.LogSoftmax(dim=1)
-        print("MnistCNN was made")
+        print("\nMnistCNN was made")
 
     def forward(self, x):
         x = self.mp(self.relu(self.conv1(x)))
@@ -111,7 +81,7 @@ class CifarCnn(nn.Module):
         self.relu = nn.ReLU()
         self.mp = nn.MaxPool2d(2)
         self.LogSoftmax = nn.LogSoftmax(dim=1)
-        print("CifarCnn was made")
+        print("\nCifarCnn was made")
 
     def forward(self, x):
         x = self.mp(self.relu(self.conv1(x)))
@@ -137,7 +107,7 @@ class TestCNN(nn.Module):
         self.elu = nn.ELU()
         self.fc = nn.Linear(64, dim_out)
         self.LogSoftmax = nn.LogSoftmax(dim=1)
-        print("TestCNN was made")
+        print("\nTestCNN was made")
         
     def forward(self, x):
         x = self.elu(self.conv1(x))
@@ -177,8 +147,6 @@ class VGG(nn.Module):
 
         if init_weights:
             self._initialize_weights()
-
-        print("VGG was made")
 
     def _initialize_weights(self):
         for m in self.modules():

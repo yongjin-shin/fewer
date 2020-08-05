@@ -18,40 +18,13 @@ You might not need to create an empty ```log``` folder.
 
 ## Run
 Related hyperparameters are in config/config.yaml. Configuration can be controlled config/config.yaml.
-Run with the following script: * Caution on UnicodeDecodeError for config.yaml
+Run with the following script:
+
 ```python main.py```
 
-If you want to experiments several settings, please modify ```config.yaml``` or argparse.  
-```shell script
-usage: main.py [-h] [--config_file CONFIG_FILE] [--nb_exp_reps NB_EXP_REPS]
-               [--nb_devices NB_DEVICES] [--nb_rounds NB_ROUNDS] [--lr LR]
-               [--model MODEL] [--pruning_type PRUNING_TYPE]
-               [--plan_type PLAN_TYPE] [--decay_type DECAY_TYPE]
-               [--device DEVICE] [--scheduler SCHEDULER]
-               [--target_sparsity TARGET_SPARSITY] [--local_ep LOCAL_EP]
-               [--cuda_type CUDA_TYPE] [--weight_decay WEIGHT_DECAY]
-               [--dataset DATASET]
-```
+If you want to experiments several settings, you need to make each configuration yaml file in the 'config/settings' folder.
+Then You can run all the experiments with the following script:
 
-## Plot
-You can plot with using ```plot_figure.py```. 
-```shell script
-usage: plot_figure.py [-h] [--root ROOT] [--xs XS [XS ...]]
-                      [--exp_name EXP_NAME [EXP_NAME ...]]
-                      [--legend LEGEND [LEGEND ...]] [--title TITLE]
-```
-**Check the example below**
-- root: the root location of your experiments. Defaults is './log/'
-- xs: choose x-axis. [str, list] list can be parsed with the white space.
-- exp_name: write down all exp_name which you would like to compare. [str, list]
-- legend: if you want to set the label for each exp, use this. The order should be exactly same wwith exp_name. [str, list]
-- title: the title for saving figure.
- 
-Example:
-```shell script
-python plot_figure.py  
-       --xs round  
-       --exp_name [mlp-mnist]vanilla_lr_step_0.03_localep_1 [deep_mlp-mnist]vanilla_lr_step_0.03_localep_1 [mlp-mnist]vanilla_lr_step_0.03_localep_5 [deep_mlp-mnist]vanilla_lr_step_0.03_localep_5
-       --legend mlp_local_ep1 deep_local_ep1 mlp_local_ep5 deep_local_ep5
-       --title mlp_vs_deep
-```
+```python main.py setings```
+
+* Caution on UnicodeDecodeError for config.yaml
