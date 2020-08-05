@@ -8,7 +8,7 @@ ratio_clients_per_round: 0.1  # 한 라운드에 몇 명에게 보낼까?
 aggregation_alg: 'fedavg' # aggregtion algorithm
 
 # fedPR arguments
-pruning: False
+pruning: True
 pruning_type: 'server_pruning'
 recovery: False
 
@@ -20,24 +20,23 @@ decay_type: 'gradual'
 
 
 # model arguments
-model: 'mlp' #mlp, deep_mlp, mnistcnn, cifarcnn, testcnn, vgg
+model: 'vgg' #mlp, mnistcnn, cifarcnn, testcnn, vgg
 hidden: 256
 loss_func: 'CrossEntropy'
 lr: 0.03
 optimizer: 'sgd'  # 'adam', 'sgd'
 momentum: 0.9
-weight_decay: 0.0005
-scheduler: 'step'  # cosine | linear | constant | step
+weight_decay: 0  # 5e-4
+scheduler: 'cosine'  # cosine | linear | constant
 
 
 # dataset arguments
-dataset: 'mnist' # mnist, fmnist, cifar10
+dataset: 'cifar10' # mnist, fmnist, cifar10
 iid: False  # True, False
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
 # misc
 gpu: True  # True, False
-cuda_type: 0  # 0, 1
 server_location: 'cpu'  # gpu, cpu
 seed: 100
 nb_exp_reps: 3  # 반복실험 횟수

@@ -1,99 +1,98 @@
+import seaborn as sns
 import matplotlib.pyplot as plt
-from matplotlib import cm
-from collections import defaultdict
+import pandas as pd
 import numpy as np
-import argparse
-import json
+import sys
+import os
 
 
-ys = ['train_loss', 'test_loss', 'test_acc']
-
-
-def get_avg(data, xs, ys):
-    raw = defaultdict(list)
-    avg = defaultdict(dict)
-    avg['loss'] = defaultdict(dict)
-    cols = ys + xs
-
-    for exp in data.keys():
-        d = data[exp]
-        for col in cols:
-            raw[col].append(d[col])
-
-    for col in cols:
-        raw_vec = np.array(raw[col])
-        mean_vec = np.mean(raw_vec, axis=0)
-        std_vec = np.std(raw_vec, axis=0)
-
-        if col in xs:
-            if any(list(std_vec)) > 0:
-                raise RuntimeError("xs should be same for all the exp")
-            else:
-                avg[col] = {'raw': mean_vec}
-        else:
-            if 'loss' in col:
-                if 'train' in col:
-                    avg['loss']['train'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
-                else:
-                    avg['loss']['test'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
-            else:
-                avg['acc'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
-
-    return avg
-
-
-def read_all(root, folders, args):
-    data = []
-    for folder in folders:
-        path = root + folder
-        with open(f'{path}/results.json') as f:
-            d = json.load(f)
-            data.append(get_avg(d, args.xs, ys))
-    return data
-
-
-def line_plot(x, y, y_type, label, color):
-    if 'loss' == y_type:
-        plt.plot(x['raw'], y['test']['mean'], label=label, lw=2, color=color, alpha=1)
-        plt.fill_between(x['raw'], y['test']['lower'], y['test']['upper'], color=color, alpha=0.2)
-        plt.plot(x['raw'], y['train']['mean'], color=color, alpha=0.5, linestyle='--')
+def main():
+    p = sys.argv[-1]
+    if 'plot_figure.py' not in p:
+        path = f'./log/{p}'
     else:
-        plt.plot(x['raw'], y['mean'], label=label, lw=2, color=color, alpha=1)
-        plt.fill_between(x['raw'], y['lower'], y['upper'], color=color, alpha=0.2)
+        path = f'./log'
 
+    cifar_folders = [f.path for f in os.scandir(path) if f.is_dir() if 'cifar' in f.path]
+    mnist_folders = [f.path for f in os.scandir(path) if f.is_dir() if 'mnist' in f.path]
+    dirs = {'cifar': cifar_folders, 'mnist': mnist_folders}
 
-def plot(x, y, data, title, xlim=None, ylim=None):
-    fig = plt.figure(figsize=(8, 6))
-    colors = cm.Set1
-    for idx, d in enumerate(data):
-        line_plot(x=d[x], y=d[y], y_type=y, label=args.legend[idx], color=colors(idx))
+    for data_type in dirs:
+        dfs = []
+        _dir = dirs[data_type]
+        print(f"Read {_dir}...")
 
-    plt.xlabel('Round', fontsize=20) if 'round' in x else plt.xlabel('Cost', fontsize=20)
-    plt.ylabel('Accuracy (%)', fontsize=20) if 'acc' in y else plt.ylabel('Loss', fontsize=20)
-    plt.xlim(xlim[0], xlim[1]) if xlim is not None else None
-    plt.xlim(xlim[0], xlim[1]) if ylim is not None else None
-    plt.legend(fontsize=18, loc='best')
-    fig.tight_layout()  # otherwise the right y-label is slightly clipped
-    plt.grid()
-    plt.savefig(f"./log/{x}_{y}_{title}.png")
-    plt.show()
+        for _subdir in _dir:
+            if 'local_pruning_reverse' in _subdir:
+                continue
+            df = pd.read_csv(f"{_subdir}/results.csv")
+            tmp_cost = 0
+            for _id in df['exp_id'].unique():
+                cost = df[df['exp_id'] == _id]['Cost'].values
+                tmp_cost += cost
 
+            tmp_cost /= len(df['exp_id'].unique())
+            tmp_cost = tmp_cost.tolist()
+            tmp_cost = tmp_cost * len(df['exp_id'].unique())
+            df['Cost'] = np.array(tmp_cost)
 
-def main(args):
-    data = read_all(args.root, args.exp_name, args)
-    for x in args.xs:
-        for y in ['loss', 'acc']:
-            plot(x, y, data, args.title)
+            flag = []
+            for _id in df['exp_id'].unique():
+                if np.mean(df[df['exp_id'] == _id]['ACC'].dropna().values) < 20:
+                    flag.append(_id)
+
+            for _f in flag:
+                df = df[~(df['exp_id'] == _f)]
+
+            dfs.append(df)
+
+        df = pd.concat(dfs)
+        df["Experiments"] = "[" + df['exp_name'] + "] " + df['Legend']
+
+        acc_df = df[df['ACC'].notna()]
+        loss_df = df[df['Loss'].notna()]
+        loss_train = loss_df[loss_df['Legend'] == 'Train']
+        loss_test = loss_df[loss_df['Legend'] == 'Test']
+
+        xs = ['Cost', 'round']
+        rets = ['Loss', 'ACC']
+
+        for _x in xs:
+            for ret in rets:
+                for legend in ['train', 'test']:
+                    if 'Loss' == ret:
+                        if 'mnist' == data_type:
+                            plt.ylim(0, 1)
+                        else:
+                            plt.ylim(0, 2)
+                        if 'train' == legend:
+                            data = loss_train
+                        else:
+                            data = loss_test
+                    else:
+                        if 'train' == legend:
+                            continue
+                        else:
+                            data = acc_df
+                            if 'mnist' == data_type:
+                                plt.ylim(80, 100)
+                            else:
+                                plt.ylim(0, 100)
+
+                    print("Make plot...")
+                    hue_order = np.sort(data['Experiments'].unique())
+                    sns.lineplot(x=_x, y=ret, hue='Experiments', hue_order=hue_order, data=data)
+
+                    if 'Cost' == _x:
+                        plt.xlabel(f"{_x} (Mbytes)")
+                    else:
+                        plt.xlabel(f"{_x}")
+
+                    plt.savefig(f"{path}/{data_type}_{_x}_{ret}_{legend}.png")
+                    print("Plot saved!")
+                    # plt.show()
+                    plt.close()
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='plot parser')
-    parser.add_argument('--root', default='./log/', type=str)
-    parser.add_argument('--xs', nargs='+')
-    parser.add_argument('--exp_name', nargs='+')
-    parser.add_argument('--legend', default=False, nargs='+')
-    parser.add_argument('--title', type=str)
-    args = parser.parse_args()
-    if not args.legend:
-        args.legend = args.exp_name
-    main(args)
+    main()
