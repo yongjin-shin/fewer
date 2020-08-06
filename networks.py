@@ -37,6 +37,8 @@ def create_nets(args, location):
         model = vgg11(m_type='slim')
     elif args.model == 'res8':
         model = resnet8(num_classes=10)
+    elif args.model == 'res20':
+        model = resnet20(num_classes=10)
     else:
         raise NotImplementedError
 
