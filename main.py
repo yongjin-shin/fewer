@@ -1,15 +1,9 @@
 import numpy as np
-import random
-import torch
-
-# Related Class and functions
 from server import Server
 from data import Preprocessor
-from misc import read_argv
-from logger import Logger
-import warnings
-import gc
-import torch
+from utils import *
+import torch, gc, warnings, random
+
 warnings.filterwarnings('ignore')
 
 
@@ -25,7 +19,6 @@ def main():
         del model
         gc.collect()
         torch.cuda.empty_cache()
-        # logger.plot(exp_id=i)
 
     logger.save_data()
     logger.save_yaml()
@@ -51,6 +44,7 @@ def single_experiment(args, i, logger):
     gc.collect()
     torch.cuda.empty_cache()
 
+    logger.save_data()
     return ret_model
 
 

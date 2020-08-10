@@ -2,8 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from collections import defaultdict
 import numpy as np
-import argparse
-import json
+import argparse, json
 
 
 ys = ['train_loss', 'test_loss', 'test_acc']

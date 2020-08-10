@@ -1,27 +1,23 @@
-from torch.utils.data import DataLoader
 import numpy as np
-import copy
+import copy, gc, time
 import torch
+from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-# Related Classes
-from local import Local
-from aggregation import get_aggregation_func
-from pruning import *
-from networks import create_nets
-from misc import model_location_switch_downloading, mask_location_switch, get_size, ConstantLR, LinearLR, LinearStepLR
-from logger import Results
-import gc
-import time
+# import related custom packages
+from local import *
+from train_tools import *
+from utils import *
+
+__all__ = ['Server']
 
 
 class Server:
     def __init__(self, args, logger):
 
         # important variables
-        self.args = args
+        self.args, self.logger = args, logger
         self.locals = Local(args=args)
-        self.logger = logger
         
         # pruning handler
         self.pruning_handler = PruningHandler(args)
@@ -59,17 +55,7 @@ class Server:
     def make_model(self):
         model = create_nets(self.args, 'SERVER')
         print(model)
-
-        if self.args.server_location == 'gpu':
-            if self.args.gpu:
-                self.model = model.to(self.args.device)
-            else:
-                raise RuntimeError
-        elif self.args.server_location == 'cpu':
-            self.model = model
-        else:
-            raise NotImplementedError
-
+        self.model = model.to(self.args.server_location)
         self.init_cost = get_size(self.model.parameters())
 
     def make_opt(self):
@@ -77,6 +63,7 @@ class Server:
                                             lr=self.args.lr,
                                             momentum=self.args.momentum,
                                             weight_decay=self.args.weight_decay)
+        
         if 'cosine' == self.args.scheduler:
             self.server_lr_scheduler = CosineAnnealingLR(self.server_optim,
                                                          self.args.nb_rounds,
@@ -108,12 +95,11 @@ class Server:
             print(f'Epoch [{exp_id}: {r+1}/{self.args.nb_rounds}]', end='')
 
             # global pruning step
-            #if self.args.pruning_type == 'server_pruning':
-            #    self.model, global_mask = self.pruning_handler.pruner(self.model, r)
-            #    mask_merger(self.model)
-                
+            if self.args.pruning_type == 'server_pruning':
+                self.model, global_mask = self.pruning_handler.round_pruner(self.model, r, merge=True)
+
             # distribution step
-            current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
+            current_sparsity = sparsity_evaluator(self.model)
             print(f'Down Spars : {current_sparsity:.3f}', end=' ')
             self.tot_comm_cost += self.init_cost * (1-current_sparsity) * self.nb_client_per_round
 
@@ -121,29 +107,25 @@ class Server:
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
             clients_dataset = [self.dataset_locals[i] for i in sampled_devices]
 
-            # local pruning step
-            # client training & upload models
+            # local pruning step (client training & upload models)
             train_loss, updated_locals = self.clients_training(clients_dataset=clients_dataset,
                                                                keeped_masks=global_mask,
-                                                               recovery=self.args.recovery,
                                                                r=r)
             self.server_lr_scheduler.step()
 
             # aggregation step
             self.aggregation_models(updated_locals)
-            
-            # global pruning step
-            if self.args.pruning_type in ['local_pruning', 'local_pruning_half']:
-                self.model, global_mask = self.pruning_handler.pruner(self.model, r)
-                mask_merger(self.model)
-                current_sparsity = self.pruning_handler.global_sparsity_evaluator(self.model)
+            gc.collect()
+            torch.cuda.empty_cache()
             
             # test & log results
             test_loss, test_acc = self.test()
             end_time = time.time()
             ellapsed_time = end_time - start_time
-            self.logger.get_results(Results(train_loss.item(), test_loss, test_acc, current_sparsity*100, self.tot_comm_cost, r, exp_id,
-                                            ellapsed_time, self.server_lr_scheduler.get_last_lr()[0]))
+            self.logger.get_results(Results(train_loss, test_loss, test_acc, 
+                                            current_sparsity*100, self.tot_comm_cost, 
+                                            r, exp_id, ellapsed_time, 
+                                            self.server_lr_scheduler.get_last_lr()[0]))
 
         return self.container, self.model
 
@@ -153,51 +135,20 @@ class Server:
 
         for _cnt, dataset in enumerate(clients_dataset):
             self.locals.get_dataset(client_dataset=dataset)
-            self.locals.get_model(server_model=model_location_switch_downloading(model=self.model,
-                                                                                 args=self.args))
+            self.locals.get_model(server_model=self.model.state_dict())
             self.locals.get_lr(server_lr=self.server_lr_scheduler.get_last_lr()[0])
 
-            if recovery:
-                raise RuntimeError("We Dont need recovery step anymore!!!")
-                # train_loss += self.locals.train_with_recovery(mask_location_switch(keeped_masks, self.args.device))
+            if keeped_masks is not None:    
+                # get and apply pruned mask from global
+                mask_adder(self.locals.model, keeped_masks)
+                train_loss += self.locals.train()
+                mask_merger(self.locals.model)                
                 
             else:
-                if keeped_masks is not None:    
-                    # get and apply pruned mask from global
-                    mask_adder(self.locals.model, mask_location_switch(keeped_masks, self.args.device))
-                
-                if self.args.pruning_type == 'server_pruning':
-                    train_loss += self.locals.train()
-                    mask_merger(self.locals.model)
-                
-                elif self.args.pruning_type == 'local_pruning':
-                    train_loss += self.locals.train()
-                    mask_merger(self.locals.model)
-                    _, keeped_local_mask = self.pruning_handler.pruner(self.locals.model, r)
-                    mask_merger(self.locals.model)
-
-                elif self.args.pruning_type == 'local_pruning_half':
-                    # run half epochs with initial mask
-                    self.locals.adapt_half_epochs('half1')
-                    train_loss += self.locals.train()
-                    
-                    # local pruning step 
-                    mask_merger(self.locals.model)
-                    _, keeped_local_mask = self.pruning_handler.pruner(self.locals.model, r)
-                    mask_adder(self.locals.model, mask_location_switch(keeped_local_mask, self.args.device))
-                    
-                    # run remaining half epochs
-                    self.locals.adapt_half_epochs('half2')
-                    train_loss += self.locals.train()
-                    
-                    # merge mask of local (remove masks but pruned weights are still zero)
-                    mask_merger(self.locals.model)
-                
-                else:
-                    train_loss += self.locals.train()
+                train_loss += self.locals.train()
 
             """ Sparsity """
-            local_sparsity.append(self.pruning_handler.global_sparsity_evaluator(self.locals.model))
+            local_sparsity.append(sparsity_evaluator(self.locals.model))
 
             """ Uploading """
             self.tot_comm_cost += self.init_cost * (1 - local_sparsity[-1])
@@ -211,11 +162,10 @@ class Server:
 
     def aggregation_models(self, updated_locals):
         self.model.load_state_dict(copy.deepcopy(self.aggregate_model_func(updated_locals)))
-        gc.collect()
-        torch.cuda.empty_cache()
 
     def test(self):
         self.model.to(self.args.device).eval()
+
         test_loss, correct, itr = 0, 0, 0
         for itr, (data, target) in enumerate(self.test_loader):
             data = data.to(self.args.device)
@@ -225,11 +175,8 @@ class Server:
             y_pred = torch.max(output, dim=1)[1]
             correct += torch.sum(y_pred.view(-1) == target.to(self.args.device).view(-1)).cpu().item()
 
-        self.model.to(self.args.device).train()
+        self.model.to(self.args.server_location).train()
         return test_loss / (itr + 1), 100 * float(correct) / float(self.len_test_data)
 
     def get_global_model(self):
         return self.model
-
-
-

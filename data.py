@@ -1,9 +1,10 @@
-
 from pathlib import Path
 from torchvision import datasets, transforms
 from torch.utils.data import Subset
 from collections import deque
 import numpy as np
+
+__all__ = ['Preprocessor']
 
 
 class Preprocessor:
@@ -27,16 +28,19 @@ class Preprocessor:
             Path(path).mkdir(parents=True, exist_ok=True)
             dataset_train = datasets.MNIST(path, train=True, transform=train_transform, download=True)
             dataset_test = datasets.MNIST(path, train=False, transform=test_transform, download=True)
+            
         elif self.args.dataset == 'fmnist':
             train_transform, test_transform = self.fashion_mnist_data_augmentation()
             Path(path).mkdir(parents=True, exist_ok=True)
             dataset_train = datasets.FashionMNIST(path, train=True, download=True)
             dataset_test = datasets.FashionMNIST(path, train=False, download=True)
+            
         elif self.args.dataset == 'cifar10':
             train_transform, test_transform = self.cifar_data_augmentation()
             Path(path).mkdir(parents=True, exist_ok=True)
             dataset_train = datasets.CIFAR10(path, train=True, transform=train_transform, download=True)
             dataset_test = datasets.CIFAR10(path, train=False, transform=test_transform, download=True)
+            
         else:
             exit('Error: unrecognized dataset')
 
@@ -61,19 +65,22 @@ class Preprocessor:
         print(f"\nDataset Length\n"
               f" Center length: {dataset_server.__len__()}\n"
               f" Local length: {len(datasets_local)} x {datasets_local[0].__len__()}\n")
+        
         return dataset_server, datasets_local
 
     def make_non_iid(self, labels):
         length = int((len(labels) - self.args.nb_server_data) / self.args.nb_devices)
         idx = []
+        
         # non-iid로 만들 필요가 없는 경우
         if self.args.iid or self.args.nb_devices == 1:
             tot_idx = np.arange(len(labels))
             for _ in range(self.args.nb_devices):
                 idx.append(tot_idx[:length])
                 tot_idx = tot_idx[length:]
-
-        else:  # non-iid으로 만들어야 하는 경우
+        
+        # non-iid으로 만들어야 하는 경우
+        else:  
             # Todo: Unbalanced dataset을 만들기 위해서는 아래 num_shards를 수정해야 함
             # 하나의 local은 nb_max_classes만큼 unique한 class를 가져갈 거임
             # 다만, 각 class의 개수는 num_shards만큼 동일함.
