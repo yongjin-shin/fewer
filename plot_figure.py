@@ -3,7 +3,8 @@ from matplotlib import cm
 from collections import defaultdict
 import numpy as np
 import argparse, json
-
+import matplotlib as mpl
+mpl.use('Agg')
 
 ys = ['train_loss', 'test_loss', 'test_acc']
 
@@ -25,10 +26,11 @@ def get_avg(data, xs, ys):
         std_vec = np.std(raw_vec, axis=0)
 
         if col in xs:
-            if any(list(std_vec)) > 0:
-                raise RuntimeError("xs should be same for all the exp")
-            else:
-                avg[col] = {'raw': mean_vec}
+        #    if any(list(std_vec)) > 0:
+        #        raise RuntimeError("xs should be same for all the exp")
+        #    else:
+            avg[col] = {'raw': mean_vec}
+        
         else:
             if 'loss' in col:
                 if 'train' in col:
@@ -75,7 +77,6 @@ def plot(x, y, data, title, xlim=None, ylim=None):
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     plt.grid()
     plt.savefig(f"./log/{x}_{y}_{title}.png")
-    plt.show()
 
 
 def main(args):
