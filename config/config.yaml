@@ -26,7 +26,7 @@ lr: 0.01
 optimizer: 'sgd'  # 'sgd'
 momentum: 0.9
 weight_decay: 0.0000
-scheduler: 'step'  # cosine | linear | constant | step
+scheduler: 'constant'  # cosine | linear | constant | step
 
 
 # dataset arguments
@@ -39,5 +39,5 @@ gpu: True  # True, False
 cuda_type: 0  # 0, 1
 server_location: 'cpu'  # gpu, cpu
 seed: 100
-nb_exp_reps: 3  # 반복실험 횟수
+nb_exp_reps: 2  # 반복실험 횟수
 

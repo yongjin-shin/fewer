@@ -1,1 +1,1 @@
-python ./main.py --pruning true
+python ./main.py --pruning true --scheduler cosine --lr 0.1 --device cuda:1
