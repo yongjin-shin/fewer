@@ -85,7 +85,7 @@ def read_argv():
     parser.add_argument('--nb_rounds', type=int)
     parser.add_argument('--lr', type=float)
     parser.add_argument('--model', type=str)
-    parser.add_argument('--pruning', type=bool)
+    parser.add_argument('--pruning', type=str)
     parser.add_argument('--pruning_type', type=str)
     parser.add_argument('--plan_type', type=str)
     parser.add_argument('--decay_type', type=str)
@@ -128,7 +128,7 @@ def read_argv():
     args.weight_decay = additional_args.weight_decay if additional_args.weight_decay is not None else args.weight_decay
     
     # pruning settings
-    args.pruning = additional_args.pruning if additional_args.pruning is not None else args.pruning
+    args.pruning = str2bool(additional_args.pruning if additional_args.pruning is not None else args.pruning)
     args.pruning_type = additional_args.pruning_type if additional_args.pruning_type is not None else args.pruning_type
     args.plan_type = additional_args.plan_type if additional_args.plan_type is not None else args.plan_type
     args.decay_type = additional_args.decay_type if additional_args.decay_type is not None else args.decay_type
@@ -150,5 +150,16 @@ def make_exp_name(args):
         title = "vanilla_lr_"
 
     return title + f"{args.scheduler}_{args.lr}_localep_{args.local_ep}"
+
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
