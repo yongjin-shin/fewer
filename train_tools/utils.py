@@ -1,8 +1,7 @@
 import torch, copy
 from .models import *
 
-__all__ = ['create_nets', 'get_size', 'get_server_location', 'get_device', 
-          'model_location_switch_downloading', 'model_location_switch_uploading', 'mask_location_switch']
+__all__ = ['create_nets', 'get_size', 'get_server_location', 'get_device']
 
 
 MODELS = {'mlp': MLP, 'deep_mlp': DeepMLP, 'testcnn': TestCNN,'mnistcnn': MnistCNN, 'cifarcnn': CifarCNN,
@@ -54,41 +53,3 @@ def get_device(args):
         device = 'cpu'
         
     return device
-
-
-def model_location_switch_downloading(model, args):
-    if args.gpu:
-        if 'gpu' == args.server_location:
-            return copy.deepcopy(model.state_dict())
-        else:
-            _state_dict = copy.deepcopy(model.state_dict())
-            for i in _state_dict:
-                _state_dict[i] = _state_dict[i].to(args.device)
-            return _state_dict
-    else:
-        if 'gpu' == args.server_location:
-            raise RuntimeError("This cannot be happened!")
-        else:
-            return copy.deepcopy(model.state_dict())
-
-
-def model_location_switch_uploading(model, args):
-    if args.gpu:
-        if 'gpu' == args.server_location:
-            return copy.deepcopy(model.state_dict())
-        else:
-            _state_dict = copy.deepcopy(model.state_dict())
-            for i in _state_dict:
-                _state_dict[i] = _state_dict[i].to('cpu')
-            return _state_dict
-    else:
-        if 'gpu' == args.server_location:
-            raise RuntimeError("This cannot be happened!")
-        else:
-            return copy.deepcopy(model.state_dict())
-
-
-def mask_location_switch(keeped_masks, _device):
-    for i in keeped_masks:
-        keeped_masks[i] = keeped_masks[i].to(_device)
-    return keeped_masks

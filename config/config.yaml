@@ -19,14 +19,14 @@ decay_type: 'gradual'
 
 
 # model arguments
-model: 'res8' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res
+model: 'res8' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res8
 hidden: 256
 loss_func: 'CrossEntropy'
 lr: 0.01
 optimizer: 'sgd'  # 'sgd'
 momentum: 0.9
 weight_decay: 0.0000
-scheduler: 'constant'  # cosine | linear | constant | step
+scheduler: 'linear'  # cosine | linear | constant | step
 
 
 # dataset arguments
@@ -36,6 +36,7 @@ nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 �
 
 # misc
 gpu: True  # True, False
+cuda_type: 0  # 0, 1
 server_location: 'cpu'  # gpu, cpu
 seed: 100
 nb_exp_reps: 1  # 반복실험 횟수

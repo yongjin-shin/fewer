@@ -92,7 +92,7 @@ class Server:
         for r in range(self.args.nb_rounds):
             start_time = time.time()
             print('==================================================')
-            print(f'Epoch [{r+1}/{self.args.nb_rounds}]')
+            print(f'Epoch [{exp_id}: {r+1}/{self.args.nb_rounds}]', end='')
 
             # global pruning step
             if self.args.pruning_type == 'server_pruning':
@@ -100,7 +100,7 @@ class Server:
 
             # distribution step
             current_sparsity = sparsity_evaluator(self.model)
-            print(f'Down Spars : {current_sparsity:.3f}', end=' ')
+            print(f' Down Spars : {current_sparsity:.3f}', end=' ')
             self.tot_comm_cost += self.init_cost * (1-current_sparsity) * self.nb_client_per_round
 
             # Sample Clients
@@ -156,7 +156,7 @@ class Server:
             self.locals.reset()
 
         train_loss /= (_cnt+1)
-        print(f'Avg Uploading Sparsity : {round(sum(local_sparsity)/len(local_sparsity), 4):.4f}')
+        print(f'Avg Up Spars : {round(sum(local_sparsity)/len(local_sparsity), 4):.3f}')
 
         return train_loss, updated_locals
 

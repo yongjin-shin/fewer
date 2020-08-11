@@ -113,7 +113,6 @@ def read_argv():
     args.dataset = additional_args.dataset if additional_args.dataset is not None else args.dataset
     args.device = additional_args.device if additional_args.device is not None else get_device(args)
     args.cuda_type = additional_args.cuda_type if additional_args.cuda_type is not None else args.cuda_type
-    args.exp_name = additional_args.exp_name if additional_args.exp_name is not None else args.exp_name
     
     # FL settings
     args.server_location = additional_args.server_location if additional_args.server_location is not None else get_server_location(args)
@@ -133,13 +132,10 @@ def read_argv():
     args.plan_type = additional_args.plan_type if additional_args.plan_type is not None else args.plan_type
     args.decay_type = additional_args.decay_type if additional_args.decay_type is not None else args.decay_type
     args.target_sparsity = additional_args.target_sparsity if additional_args.target_sparsity is not None else args.target_sparsity
-    
-    if args.exp_name is None:
-        args.exp_name = make_exp_name(args)
-    
+
+    args.exp_name = additional_args.exp_name if additional_args.exp_name is not None else make_exp_name(args)
     args.model = args.model.lower()
     args.dataset = args.dataset.lower()
-
     return args
 
 

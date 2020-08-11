@@ -59,10 +59,6 @@ class Local:
     def upload_model(self):
         return copy.deepcopy(self.model.state_dict())
     
-    def upload_optim(self):
-        return [copy.deepcopy(self.optim.state_dict()),
-                copy.deepcopy(self.lr_scheduler.state_dict())]
-
     def reset(self):
         self.data_loader = None
         self.optim = None

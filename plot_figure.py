@@ -1,9 +1,10 @@
-import seaborn as sns
 import matplotlib.pyplot as plt
-import pandas as pd
+from matplotlib import cm
+from collections import defaultdict
 import numpy as np
 import argparse, json
 import matplotlib as mpl
+
 mpl.use('Agg')
 
 ys = ['train_loss', 'test_loss', 'test_acc']
@@ -26,11 +27,11 @@ def get_avg(data, xs, ys):
         std_vec = np.std(raw_vec, axis=0)
 
         if col in xs:
-        #    if any(list(std_vec)) > 0:
-        #        raise RuntimeError("xs should be same for all the exp")
-        #    else:
+            #    if any(list(std_vec)) > 0:
+            #        raise RuntimeError("xs should be same for all the exp")
+            #    else:
             avg[col] = {'raw': mean_vec}
-        
+
         else:
             if 'loss' in col:
                 if 'train' in col:
@@ -72,7 +73,7 @@ def plot(x, y, data, title, xlim=None, ylim=None):
     plt.xlabel('Round', fontsize=20) if 'round' in x else plt.xlabel('Cost', fontsize=20)
     plt.ylabel('Accuracy (%)', fontsize=20) if 'acc' in y else plt.ylabel('Loss', fontsize=20)
     plt.xlim(xlim[0], xlim[1]) if xlim is not None else None
-    plt.xlim(ylim[0], ylim[1]) if ylim is not None else None
+    plt.xlim(xlim[0], xlim[1]) if ylim is not None else None
     plt.legend(fontsize=18, loc='best')
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     plt.grid()
