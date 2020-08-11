@@ -1,6 +1,6 @@
+import torch, copy
 
-import copy
-import torch
+__all__ = ['get_aggregation_func']
 
 
 def get_aggregation_func(alg):

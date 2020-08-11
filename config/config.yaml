@@ -1,5 +1,5 @@
 # federated arguments
-nb_rounds: 150  # communication rounds
+nb_rounds: 800 # communication rounds
 nb_devices: 100  # 로컬 클라이언트 수
 nb_server_data: 0  # 서버가 지니고 있는 데이터 개수
 local_ep: 5  # 로컬 모델 update 횟수
@@ -10,9 +10,8 @@ aggregation_alg: 'fedavg' # aggregtion algorithm
 # fedPR arguments
 pruning: True
 pruning_type: 'server_pruning'
-recovery: False
 
-plan: [0, 130, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
+plan: [0, 780, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
 target_sparsity: 0.9
 base_sparsity: 0.0
 plan_type: 'reverse'
@@ -20,14 +19,14 @@ decay_type: 'gradual'
 
 
 # model arguments
-model: 'vgg' #mlp, mnistcnn, cifarcnn, testcnn, vgg
+model: 'res8' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res
 hidden: 256
 loss_func: 'CrossEntropy'
-lr: 0.03
-optimizer: 'sgd'  # 'adam', 'sgd'
+lr: 0.01
+optimizer: 'sgd'  # 'sgd'
 momentum: 0.9
-weight_decay: 0  # 5e-4
-scheduler: 'cosine'  # cosine | linear | constant
+weight_decay: 0.0000
+scheduler: 'constant'  # cosine | linear | constant | step
 
 
 # dataset arguments
@@ -39,5 +38,5 @@ nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 �
 gpu: True  # True, False
 server_location: 'cpu'  # gpu, cpu
 seed: 100
-nb_exp_reps: 3  # 반복실험 횟수
+nb_exp_reps: 1  # 반복실험 횟수
 

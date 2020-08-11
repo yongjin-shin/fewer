@@ -3,8 +3,22 @@ import torch.nn as nn
 import torch.nn.utils.prune as prune
 from torch.nn.utils.prune import remove, CustomFromMask, is_pruned
 
+__all__ = ['pruner', 'plan_organizer', 'mask_collector', 'mask_adder', 'mask_merger', 'sparsity_evaluator']
 
-__all__ = ['plan_organizer', 'mask_collector', 'mask_adder', 'mask_merger', 'mask_evaluator']
+
+@torch.no_grad()
+def pruner(model, amount):
+    """
+    (amount) total amount of desired sparsity
+    """
+    for name, module in model.named_modules():
+        # prune declared amount of connections in all 2D-conv & Linear layers
+        if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.Linear):
+            prune.l1_unstructured(module, name='weight', amount=amount)
+            #prune.remove(module, 'weight') # make it permanent
+            
+    return model
+
 
 def plan_organizer(plan, target_sparsity, base_sparsity=0, plan_type='base', decay_type='gradual'):
     # unpack training plans
@@ -35,80 +49,73 @@ def plan_organizer(plan, target_sparsity, base_sparsity=0, plan_type='base', dec
     for r in range(tuning_r):
         pruning_plan.append(pruning_plan[-1])
         
+    pruning_plan = [round(elem, 4) for elem in pruning_plan]
+        
     return pruning_plan
 
 
 def _decay_rate(r, pruning_r, decay_type):
     if decay_type == 'gradual':
-        ratio = (1- (r+1)/pruning_r)**3
+        ratio = (1- r/pruning_r)**3
         
     elif decay_type == 'linear':
-        ratio = (1- (r+1)/pruning_r)
+        ratio = (1- r/pruning_r)
         
     return ratio
 
+
+@torch.no_grad()
 def mask_collector(model):
     """get current mask of model"""
     model_masks = {}
 
     for module_name, module in model.named_modules():
         key = f"{module_name}.weight_mask"
-        if isinstance(module, torch.nn.Conv2d):
-            model_masks[key] = (module.weight_mask != 0).int()
-            
-        if isinstance(module, torch.nn.Linear):
+        if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.Linear):
             model_masks[key] = (module.weight_mask != 0).int()
 
     return model_masks
 
+
+@torch.no_grad()
 def mask_adder(model, masks):
     """prune model by given masks"""
     mask_pruner = CustomFromMask(None)
     for module_name, module in model.named_modules():
         key = f"{module_name}.weight_mask"
         if key in masks:
-            if isinstance(module, torch.nn.Conv2d):
-                _mask = masks[key]
-                mask_pruner.apply(module, 'weight', _mask)
-            if isinstance(module, torch.nn.Linear):
+            if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.Linear):
                 _mask = masks[key]
                 mask_pruner.apply(module, 'weight', _mask)
 
+                
+@torch.no_grad()
 def mask_merger(model):
-    "remove mask but let weights stay pruned"
-    for n, m in model.named_modules():
-        if is_pruned(m)==False:
+    """remove mask but let weights stay pruned"""
+    for name, module in model.named_modules():
+        if is_pruned(module)==False:
             continue
-        if isinstance(m, torch.nn.Conv2d):
-            remove(m, name='weight')
-        if isinstance(m, torch.nn.Linear):
-            remove(m, name='weight')   
+        if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.Linear):
+            remove(module, name='weight') 
 
-#def mask_merger(model, original_model):
-#    """get model parameters to original structure"""
-#    temp_model = copy.deepcopy(original_model)
-
-#    for name, temp_module in temp_model.named_modules():
-#        if isinstance(temp_module, torch.nn.Conv2d):
-#            getattr(temp_model, name).weight.data = getattr(model, name).weight.data
-#            getattr(temp_model, name).bias.data = getattr(model, name).bias.data
             
-#        if isinstance(temp_module, torch.nn.Linear):
-#            getattr(temp_model, name).weight.data = getattr(model, name).weight.data
-#            getattr(temp_model, name).bias.data = getattr(model, name).bias.data
+@torch.no_grad()
+def sparsity_evaluator(model, for_mask=False):
+    """evaluate sparsity of model"""
+    num_sparse, num_weight = 0, 0
+    for name, module in model.named_modules():
+        if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.Linear):
+            if for_mask:            
+                num_sparse += (module.weight_mask == 0).sum().item()
+                num_weight += module.weight_mask.nelement()
+            
+            else:
+                num_sparse += (module.weight == 0).sum().item()
+                num_weight += module.weight.nelement()
+            
+    sparsity = round(num_sparse/num_weight, 4)
         
-#    return temp_model
-
-def mask_evaluator(masks):
-    """get sparsity of mask"""
-    num_elem = 0
-    masked_elem = 0
-    
-    for key, val in masks.items():
-            masked_elem += (val == 0).int().sum().item()
-            num_elem += val.nelement()
-
-    return round(masked_elem/num_elem, 4)
+    return sparsity
 
 
     
