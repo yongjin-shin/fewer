@@ -55,11 +55,11 @@ def read_all(root, folders, args):
 
 def line_plot(x, y, y_type, label, color):
     if 'loss' == y_type:
-        plt.plot(x['raw'], y['test']['mean'], label=label, lw=2, color=color, alpha=1)
+        plt.plot(x['raw'], y['test']['mean'], label=label, lw=1, color=color, alpha=1)
         plt.fill_between(x['raw'], y['test']['lower'], y['test']['upper'], color=color, alpha=0.2)
         plt.plot(x['raw'], y['train']['mean'], color=color, alpha=0.5, linestyle='--')
     else:
-        plt.plot(x['raw'], y['mean'], label=label, lw=2, color=color, alpha=1)
+        plt.plot(x['raw'], y['mean'], label=label, lw=1, color=color, alpha=1)
         plt.fill_between(x['raw'], y['lower'], y['upper'], color=color, alpha=0.2)
 
 

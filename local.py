@@ -2,6 +2,7 @@ import torch, math, copy
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from train_tools.utils import create_nets
+from train_tools.SparsityController.recovering_utils import *
 
 __all__ = ['Local']
 
@@ -39,8 +40,24 @@ class Local:
         self.model.to(self.args.server_location)
         local_loss = train_loss / ((self.args.local_ep) * (itr+1))
         
-        return local_loss    
-   
+        return local_loss
+    
+    
+    def stack_grad(self):
+        """stack gradient to local parameters"""
+        self.model.to(self.args.device)
+        self.optim.zero_grad()
+            
+        for data, target in self.data_loader:
+            data = data.to(self.args.device)
+            target = target.to(self.args.device)
+            output = self.model(data)
+            loss = self.criterion(output, target)
+            loss.backward()
+            
+        self.model.to(self.args.server_location)
+        
+
     def get_dataset(self, client_dataset):
         if client_dataset.__len__() <= 0:
             raise RuntimeError
