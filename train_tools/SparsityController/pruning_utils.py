@@ -23,7 +23,6 @@ def pruner(model, amount):
 def plan_organizer(plan, target_sparsity, base_sparsity=0, plan_type='base', decay_type='gradual'):
     # unpack training plans
     warming_r, pruning_r, tuning_r = plan
-    print(plan)
     # pruning plan
     pruning_plan = []
 
@@ -37,12 +36,12 @@ def plan_organizer(plan, target_sparsity, base_sparsity=0, plan_type='base', dec
         # gradually increase to target sparsity
         if plan_type == 'base':
             sparsity = target_sparsity - \
-            (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r, decay_type)
+            (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r-1, decay_type)
             
         # gradually decay from target sparsity
         elif plan_type == 'reverse':
             sparsity = base_sparsity + \
-            (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r, decay_type)
+            (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r-1, decay_type)
         
         pruning_plan.append(sparsity)
 
@@ -61,6 +60,8 @@ def _decay_rate(r, pruning_r, decay_type):
     elif decay_type == 'linear':
         ratio = (1- r/pruning_r)
         
+    elif decay_type == 'reverse_gradual':
+        ratio = (1- r/pruning_r)**(1/3)
     return ratio
 
 

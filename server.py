@@ -88,7 +88,7 @@ class Server:
     def train(self, exp_id=None):
         
         # initialize global mask & recovery signals as None
-        global_mask, recovery_signals = None, None  
+        global_mask, recovery_signals = None, []  
 
         for fed_round in range(self.args.nb_rounds):
             start_time = time.time()

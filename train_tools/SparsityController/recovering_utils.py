@@ -1,23 +1,34 @@
 import torch, math
 import torch.nn as nn
 
-__all__ = ['get_top_percentile', 'module_signal', 'signal_getter', 'signal_aggregator']
+__all__ = ['get_top_percentile', 'module_signal', 'signal_getter', 'signal_aggregator', 'mask_shower']
 
 
-def get_top_percentile(tensor, topk=0.05, as_mask=True, min_zero=False):
-    thres_idx = int(tensor.nelement() * topk)
+def get_top_percentile(tensor, topk=0.05, as_mask=True, strict=False):
+    signal = torch.zeros_like(tensor).int()
+    keep_num = int(topk*tensor.nelement())
     
-    threshold = tensor.reshape(-1).topk(thres_idx)[0].min()
-    threshold = max(1e-7, threshold) if min_zero else threshold
+    if topk == 0:
+        return signal
     
-    elem_mask = tensor > threshold
-    signal = elem_mask.int() if as_mask else tensor[elem_mask]
-    
+    if strict:
+        keep_indices = torch.topk(tensor.view(-1), k=keep_num, largest=True)
+        signal.view(-1)[keep_indices.indices] = 1
+        
+    else:
+        thres_idx = int(tensor.nelement() * topk)
+        threshold = tensor.reshape(-1).topk(thres_idx)[0].min()
+
+        elem_mask = tensor > threshold
+        signal += elem_mask.int() if as_mask else tensor[elem_mask]
+        
+        assert (signal.sum().item() / signal.nelement()) <= topk
+
     return signal
 
 
 def module_signal(module, module_mask, topk, as_mask=True):
-    grad = module.weight.grad.data
+    grad = module.weight.grad.data.abs()
     grad_mask = get_top_percentile(grad, topk=topk, as_mask=as_mask)
     signal = ((grad_mask - module_mask) == 1).int()
     
@@ -45,12 +56,24 @@ def signal_aggregator(signal_mask_list, keeped_mask, topk=0.05):
         signal = 0
         recent_mask = keeped_mask[key]
         
-        for elem in signal_mask_list:
-            signal += elem[key]
+        if topk == 0:
+            signal += recent_mask
         
-        signal = get_top_percentile(signal, topk, as_mask=True, min_zero=True)
-        signal = ((signal + recent_mask) >= 1).int()
+        else:
+            for elem in signal_mask_list:
+                signal += elem[key]
+
+            signal = get_top_percentile(signal, topk, as_mask=True, strict=True)
+            signal = ((signal + recent_mask) >= 1).int()
         
         recovery_mask[key] = signal
         
     return recovery_mask
+
+def mask_shower(aggregated_mask):
+    print()
+    for key in aggregated_mask:
+        mask = aggregated_mask[key]
+        mask_density = mask.sum().item() / mask.nelement()
+        print("%s mask density : %0.4f" % (str(key), mask_density))
+    print()

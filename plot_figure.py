@@ -72,7 +72,7 @@ def plot(x, y, data, title, xlim=None, ylim=None):
     plt.xlabel('Round', fontsize=20) if 'round' in x else plt.xlabel('Cost', fontsize=20)
     plt.ylabel('Accuracy (%)', fontsize=20) if 'acc' in y else plt.ylabel('Loss', fontsize=20)
     plt.xlim(xlim[0], xlim[1]) if xlim is not None else None
-    plt.xlim(xlim[0], xlim[1]) if ylim is not None else None
+    plt.ylim(ylim[0], ylim[1]) if ylim is not None else None
     plt.legend(fontsize=18, loc='best')
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     plt.grid()

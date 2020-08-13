@@ -22,14 +22,14 @@ class SparsityHandler():
         
         amount = self.sparsity_plan[fed_round]
 
-        if recovery_signals is None:
+        if len(recovery_signals) == 0:
             model = pruner(model, amount)
             keeped_mask = mask_collector(model)
         
         else:
-            #prev_amount = self.sparsity_plan[fed_round-1]
-            #add_amount = round(prev_amount - amount, 6)
-            recovery_mask = signal_aggregator(recovery_signals, keeped_mask, topk=0.05)
+            prev_amount = self.sparsity_plan[fed_round-1]
+            add_amount = round(prev_amount - amount, 6)
+            recovery_mask = signal_aggregator(recovery_signals, keeped_mask, topk=add_amount)
             mask_adder(model, recovery_mask)
             keeped_mask = recovery_mask
 
@@ -38,7 +38,7 @@ class SparsityHandler():
 
         return model, keeped_mask
     
-    def get_local_signal(self, local, keeped_mask, topk=0.20, as_mask=True, method='stack_grad'):
+    def get_local_signal(self, local, keeped_mask, topk=0.05, as_mask=True, method='stack_grad'):
         """collect recovery signal from locals by the given method"""
         if method == 'stack_grad':
             local.stack_grad()
