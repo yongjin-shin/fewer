@@ -7,15 +7,19 @@ __all__ = ['pruner', 'plan_organizer', 'mask_collector', 'mask_adder', 'mask_mer
 
 
 @torch.no_grad()
-def pruner(model, amount):
+def pruner(model, amount, random=False):
     """
     (amount) total amount of desired sparsity
     """
     for name, module in model.named_modules():
         # prune declared amount of connections in all 2D-conv & Linear layers
         if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.Linear):
-            prune.l1_unstructured(module, name='weight', amount=amount)
-            #prune.remove(module, 'weight') # make it permanent
+            if random:
+                prune.random_unstructured(module, name='weight', amount=amount)
+
+            else:
+                prune.l1_unstructured(module, name='weight', amount=amount)
+                #prune.remove(module, 'weight') # make it permanent
             
     return model
 

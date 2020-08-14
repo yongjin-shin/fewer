@@ -23,7 +23,12 @@ class SparsityHandler():
         amount = self.sparsity_plan[fed_round]
 
         if len(recovery_signals) == 0:
-            model = pruner(model, amount)
+            if fed_round == 0:
+                model = pruner(model, amount, random=True)
+                print('\------model is randomly initial pruned-----')
+            else:
+                model = pruner(model, amount)
+            
             keeped_mask = mask_collector(model)
         
         else:
