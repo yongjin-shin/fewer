@@ -1,5 +1,5 @@
 # federated arguments
-nb_rounds: 800 # communication rounds
+nb_rounds: 350 # communication rounds
 nb_devices: 100  # 로컬 클라이언트 수
 nb_server_data: 0  # 서버가 지니고 있는 데이터 개수
 local_ep: 5  # 로컬 모델 update 횟수
@@ -11,7 +11,7 @@ aggregation_alg: 'fedavg' # aggregtion algorithm
 pruning: True
 pruning_type: 'server_pruning'
 
-plan: [0, 780, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
+plan: [0, 330, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
 target_sparsity: 0.9
 base_sparsity: 0.0
 plan_type: 'reverse'
@@ -19,14 +19,14 @@ decay_type: 'gradual'
 
 
 # model arguments
-model: 'res8' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res8
+model: 'res8' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res8, res14, res20, vgg11, vgg11_slim
 hidden: 256
 loss_func: 'CrossEntropy'
 lr: 0.01
 optimizer: 'sgd'  # 'sgd'
 momentum: 0.9
-weight_decay: 0.0000
-scheduler: 'linear'  # cosine | linear | constant | step
+weight_decay: 0.0005
+scheduler: 'constant'  # cosine | linear | constant | step
 
 
 # dataset arguments

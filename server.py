@@ -111,6 +111,7 @@ class Server:
             train_loss, updated_locals = self.clients_training(clients_dataset=clients_dataset,
                                                                keeped_masks=global_mask,
                                                                r=r)
+            model_variance = get_models_variance(self.model.state_dict(), updated_locals, self.args.device)
             self.server_lr_scheduler.step()
 
             # aggregation step
@@ -125,7 +126,8 @@ class Server:
             self.logger.get_results(Results(train_loss, test_loss, test_acc, 
                                             current_sparsity*100, self.tot_comm_cost, 
                                             r, exp_id, ellapsed_time, 
-                                            self.server_lr_scheduler.get_last_lr()[0]))
+                                            self.server_lr_scheduler.get_last_lr()[0],
+                                            model_variance))
 
         return self.container, self.model
 
