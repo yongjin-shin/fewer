@@ -25,7 +25,7 @@ class SparsityHandler():
         if len(recovery_signals) == 0:
             if fed_round == 0:
                 model = pruner(model, amount, random=True)
-                print('\------model is randomly initial pruned-----')
+                print('\n------model is randomly initial pruned-----')
             else:
                 model = pruner(model, amount)
             

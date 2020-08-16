@@ -1,5 +1,6 @@
 import torch, math, copy
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from train_tools.utils import create_nets
 from train_tools.SparsityController.recovering_utils import *
@@ -19,7 +20,10 @@ class Local:
         self.epochs = self.args.local_ep
 
     def train(self):
-        train_loss, itr, ep = 0, 0, 0
+        if self.args.global_loss_type != 'none':
+            self.keep_global()
+
+        train_loss, train_acc, itr, ep = 0, 0, 0, 0
         self.model.to(self.args.device)
 
         for ep in range(self.epochs):        
@@ -30,17 +34,34 @@ class Local:
                 output = self.model(data)
                 loss = self.criterion(output, target)
                 
+                if self.args.global_loss_type != 'none':
+                    loss += (self.args.global_alpha * self.loss_to_round_global())
+                
                 # backward pass
                 self.optim.zero_grad()
                 loss.backward()
                 self.optim.step()
 
                 train_loss += loss.detach().item()
+        
+        
+        with torch.no_grad():
+            correct, data_num = 0, 0
+
+            for itr, (data, target) in enumerate(self.data_loader):
+                data_num += data.size(0)
+                data = data.to(self.args.device)
+                target = target.to(self.args.device)
+                output = self.model(data)
+                pred = torch.max(output, dim=1)[1]
+                correct += (pred == target).sum().item()
+
+            local_acc = round(correct/data_num, 4)
 
         self.model.to(self.args.server_location)
         local_loss = train_loss / ((self.args.local_ep) * (itr+1))
         
-        return local_loss
+        return local_loss, local_acc
     
     
     def stack_grad(self):
@@ -84,3 +105,25 @@ class Local:
         self.data_loader = None
         self.optim = None
         self.lr_scheduler = None
+        self.round_global = None
+
+    def keep_global(self):
+        self.round_global = copy.deepcopy(self.model)
+        for params in self.round_global.parameters():
+            params.requires_grad = False
+        
+    def loss_to_round_global(self):
+        loss = 0
+
+        for i, (param1, param2) in enumerate(zip(self.model.parameters(), self.round_global.parameters())):
+            if self.args.global_loss_type == 'smooth_l1':
+                if self.args.no_reg_to_recover:
+                    global_mask = (param2 != 0).int()
+                    loss += F.smooth_l1_loss(param1*global_mask, param2*global_mask, reduction='sum')
+                else:
+                    loss += F.smooth_l1_loss(param1, param2, reduction='sum')
+                
+            elif self.args.global_loss_type == 'cosine_similarity':
+                loss += -F.cosine_similarity(param1.view(-1), param2.view(-1), dim=0)
+        
+        return loss

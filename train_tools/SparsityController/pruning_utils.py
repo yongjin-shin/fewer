@@ -53,7 +53,7 @@ def plan_organizer(plan, target_sparsity, base_sparsity=0, plan_type='base', dec
         pruning_plan.append(pruning_plan[-1])
         
     pruning_plan = [round(elem, 4) for elem in pruning_plan]
-        
+    
     return pruning_plan
 
 

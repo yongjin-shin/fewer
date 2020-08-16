@@ -29,8 +29,13 @@ def get_top_percentile(tensor, topk=0.05, as_mask=True, strict=False):
 
 def module_signal(module, module_mask, topk, as_mask=True):
     grad = module.weight.grad.data.abs()
-    grad_mask = get_top_percentile(grad, topk=topk, as_mask=as_mask)
-    signal = ((grad_mask - module_mask) == 1).int()
+    
+    if as_mask:
+        grad_mask = get_top_percentile(grad, topk=topk, as_mask=as_mask)
+        signal = ((grad_mask - module_mask) == 1).int()
+    
+    else:
+        signal = grad / grad.sum().item()
     
     return signal
 

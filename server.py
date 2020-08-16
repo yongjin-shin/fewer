@@ -135,7 +135,7 @@ class Server:
         return self.container, self.model
 
     def clients_training(self, clients_dataset, keeped_masks=None, use_recovery_signal=False):
-        updated_locals, local_sparsity, recovery_signals = [], [], []
+        updated_locals, local_sparsity, recovery_signals, train_acc = [], [], [], []
         train_loss, _cnt = 0, 0
 
         for _cnt, dataset in enumerate(clients_dataset):
@@ -146,12 +146,16 @@ class Server:
             if keeped_masks is not None:    
                 # get and apply pruned mask from global
                 mask_adder(self.locals.model, keeped_masks)
-                train_loss += self.locals.train()
+                local_loss, local_acc = self.locals.train()
+                train_loss += local_loss
+                train_acc.append(local_acc)
                 mask_merger(self.locals.model)                
                 
             else:
-                train_loss += self.locals.train()
-
+                local_loss, local_acc = self.locals.train()
+                train_loss += local_loss
+                train_acc.append(local_acc)
+                
             """ Sparsity """
             local_sparsity.append(sparsity_evaluator(self.locals.model))
             
@@ -160,18 +164,19 @@ class Server:
             updated_locals.append(self.locals.upload_model())
             
             """ Recovery Signal """
-            if use_recovery_signal:
+            if self.args.use_recovery_signal:
                 local_recovery_signal = self.sparsity_handler.get_local_signal(self.locals,
                                                                                keeped_masks,
-                                                                               topk=0.2,
-                                                                               as_mask=True)
+                                                                               topk=self.args.local_topk,
+                                                                               as_mask=self.args.signal_as_mask)
                 recovery_signals.append(local_recovery_signal)
             
             # reset local model
             self.locals.reset()
         
-        print(f'Avg Up Spars : {round(sum(local_sparsity)/len(local_sparsity), 4):.3f}')
+        print(f'Avg Up Spars : {round(sum(local_sparsity)/len(local_sparsity), 4):.3f}\n')
         train_loss /= (_cnt+1)
+        print(f'Local Train Acc : {train_acc}\n')
 
         return train_loss, updated_locals, recovery_signals
 
