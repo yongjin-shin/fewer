@@ -9,7 +9,6 @@ aggregation_alg: 'fedavg' # aggregtion algorithm
 
 # pruning arguments
 pruning: False
->>>>>>> refactor
 pruning_type: 'server_pruning'
 plan: [0, 280, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
 target_sparsity: 0.9
@@ -28,11 +27,7 @@ global_loss_type: 'smooth_l1'
 no_reg_to_recover: False
 
 # model arguments
-<<<<<<< HEAD
-model: 'res8' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res8
-=======
 model: 'cifarcnn' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res
->>>>>>> refactor
 hidden: 256
 loss_func: 'CrossEntropy'
 lr: 0.01

@@ -8,7 +8,8 @@ from train_tools.utils import *
 __all__ = ['Results', 'Logger', 'read_argv', 'make_exp_name']
 
 
-Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparsity', 'cost', 'round', 'exp_id', 'ellapsed_time', 'lr'])
+Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparsity',
+                                 'cost', 'round', 'exp_id', 'ellapsed_time', 'lr', 'var'])
 rets = ['ACC', 'Loss']
 xs = ['sparsity', 'round', 'Cost']
 
@@ -45,7 +46,8 @@ class Logger:
               f"Test loss: {results.test_loss:.3f} | "
               f"Acc: {results.test_acc:.3f} | "
               f"Time: {results.ellapsed_time:.2f}s | "
-              f"lr: {results.lr:.5f}")
+              f"lr: {results.lr:.5f} | "
+              f"var: {results.var:.5f} | ")
 
     def save_data(self):
         with open(f"{self.path}/results.json", 'w') as fp:
@@ -61,6 +63,8 @@ class Logger:
         self.exp_results[results.exp_id]['test_loss'].append(results.test_loss)
         self.exp_results[results.exp_id]['test_acc'].append(results.test_acc)
         self.exp_results[results.exp_id]['sparsity'].append(results.sparsity)
+        self.exp_results[results.exp_id]['lr'].append(results.lr)
+        self.exp_results[results.exp_id]['var'].append(results.var)
 
     def make_basic_dict(self):
         return {'round': [],
@@ -69,6 +73,8 @@ class Logger:
                 'test_loss': [],
                 'test_acc': [],
                 'sparsity': [],
+                'lr': [],
+                'var': []
                 }
 
     def save_yaml(self):
@@ -88,6 +94,7 @@ def read_argv():
     parser.add_argument('--pruning', type=str)
     parser.add_argument('--pruning_type', type=str)
     parser.add_argument('--plan_type', type=str)
+    parser.add_argument('--plan', nargs='+', type=int)
     parser.add_argument('--decay_type', type=str)
     parser.add_argument('--use_recovery_signal', type=str)
     parser.add_argument('--local_topk', type=float)
@@ -134,6 +141,7 @@ def read_argv():
     
     # pruning settings
     args.pruning = str2bool(additional_args.pruning if additional_args.pruning is not None else args.pruning)
+    args.plan = additional_args.plan if additional_args.plan is not None else args.plan
     args.pruning_type = additional_args.pruning_type if additional_args.pruning_type is not None else args.pruning_type
     args.plan_type = additional_args.plan_type if additional_args.plan_type is not None else args.plan_type
     args.decay_type = additional_args.decay_type if additional_args.decay_type is not None else args.decay_type

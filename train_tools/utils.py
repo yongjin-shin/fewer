@@ -1,7 +1,7 @@
 import torch, copy
 from .models import *
 
-__all__ = ['create_nets', 'get_size', 'get_server_location', 'get_device']
+__all__ = ['create_nets', 'get_size', 'get_server_location', 'get_device', 'get_models_variance']
 
 
 MODELS = {'mlp': MLP, 'deep_mlp': DeepMLP, 'testcnn': TestCNN,'mnistcnn': MnistCNN, 'cifarcnn': CifarCNN,
@@ -53,3 +53,63 @@ def get_device(args):
         device = 'cpu'
         
     return device
+
+
+def calc_delta(local, server):
+    """local - server"""
+    delta = {}
+    for k, v in server:
+        delta[k] = local[k] - v
+
+    return delta
+
+
+def get_delta_params(server, locals):
+    delta_locals = []
+    for local in locals:
+        delta_locals.append(calc_delta(local, server))
+    return delta_locals
+
+
+def calc_var(server, local):
+    _var = {}
+    for k in server:
+        _var[k] = torch.matmul(server[k].reshape((-1, 1)).T, local[k].reshape((-1, 1))).item()
+    return _var
+
+
+def get_vec(order, vecs, device):
+    ret = torch.empty((0, 1)).to(device)
+    for k in order:
+        ret = torch.cat((ret, vecs[k].reshape((-1, 1))), axis=0)
+    return ret
+
+
+def get_local_vec(order, locals, device):
+    ret = []
+    for local in locals:
+        ret.append(get_vec(order, local, device))
+    return torch.cat(ret, dim=1)
+
+
+def get_variance(server, locals, device):
+    _vars = []
+    calc_order = [k for k in server]
+    server_vecs = get_vec(calc_order, server, device)
+    local_vecs = get_local_vec(calc_order, locals, device)
+
+    # server_norm = torch.norm(server_vecs)
+    # local_norms = torch.norm(local_vecs, dim=0)
+    #
+    # inner_prod = server_vecs.T @ local_vecs
+    # normalizer = server_norm * local_norms
+    # ret = torch.var(inner_prod / normalizer)
+    cos = torch.nn.CosineSimilarity(dim=0)
+    ret = torch.log(torch.var(cos(server_vecs.repeat(1, local_vecs.shape[-1]),
+                                  local_vecs)))
+
+    return ret.item()
+
+
+def get_models_variance(server, locals, device):
+    return get_variance(server, locals, device)
