@@ -7,15 +7,19 @@ __all__ = ['pruner', 'plan_organizer', 'mask_collector', 'mask_adder', 'mask_mer
 
 
 @torch.no_grad()
-def pruner(model, amount):
+def pruner(model, amount, random=False):
     """
     (amount) total amount of desired sparsity
     """
     for name, module in model.named_modules():
         # prune declared amount of connections in all 2D-conv & Linear layers
         if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.Linear):
-            prune.l1_unstructured(module, name='weight', amount=amount)
-            #prune.remove(module, 'weight') # make it permanent
+            if random:
+                prune.random_unstructured(module, name='weight', amount=amount)
+
+            else:
+                prune.l1_unstructured(module, name='weight', amount=amount)
+                #prune.remove(module, 'weight') # make it permanent
             
     return model
 
@@ -23,7 +27,6 @@ def pruner(model, amount):
 def plan_organizer(plan, target_sparsity, base_sparsity=0, plan_type='base', decay_type='gradual'):
     # unpack training plans
     warming_r, pruning_r, tuning_r = plan
-    print(plan)
     # pruning plan
     pruning_plan = []
 
@@ -37,12 +40,12 @@ def plan_organizer(plan, target_sparsity, base_sparsity=0, plan_type='base', dec
         # gradually increase to target sparsity
         if plan_type == 'base':
             sparsity = target_sparsity - \
-            (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r, decay_type)
+            (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r-1, decay_type)
             
         # gradually decay from target sparsity
         elif plan_type == 'reverse':
             sparsity = base_sparsity + \
-            (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r, decay_type)
+            (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r-1, decay_type)
         
         pruning_plan.append(sparsity)
 
@@ -50,7 +53,7 @@ def plan_organizer(plan, target_sparsity, base_sparsity=0, plan_type='base', dec
         pruning_plan.append(pruning_plan[-1])
         
     pruning_plan = [round(elem, 4) for elem in pruning_plan]
-        
+    
     return pruning_plan
 
 
@@ -61,6 +64,8 @@ def _decay_rate(r, pruning_r, decay_type):
     elif decay_type == 'linear':
         ratio = (1- r/pruning_r)
         
+    elif decay_type == 'reverse_gradual':
+        ratio = (1- r/pruning_r)**(1/3)
     return ratio
 
 

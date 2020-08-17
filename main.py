@@ -11,6 +11,7 @@ def main():
     args = read_argv()
     logger = Logger()
     logger.get_args(args)
+    logger.save_yaml()
 
     for i in range(args.nb_exp_reps):
         model = single_experiment(args, i, logger)
@@ -21,7 +22,6 @@ def main():
         torch.cuda.empty_cache()
 
     logger.save_data()
-    logger.save_yaml()
 
 
 def single_experiment(args, i, logger):

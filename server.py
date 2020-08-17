@@ -19,8 +19,8 @@ class Server:
         self.args, self.logger = args, logger
         self.locals = Local(args=args)
         
-        # pruning handler
-        self.pruning_handler = PruningHandler(args)
+        # sparsity handler
+        self.sparsity_handler = SparsityHandler(args)
         self.sparsity = 0
         self.tot_comm_cost = 0
         
@@ -86,17 +86,22 @@ class Server:
             raise NotImplementedError
 
     def train(self, exp_id=None):
+        
+        # initialize global mask & recovery signals as None
+        global_mask, recovery_signals = None, []  
 
-        global_mask = None  # initialize global mask as None
-
-        for r in range(self.args.nb_rounds):
+        for fed_round in range(self.args.nb_rounds):
             start_time = time.time()
             print('==================================================')
-            print(f'Epoch [{exp_id}: {r+1}/{self.args.nb_rounds}]', end='')
+            print(f'Epoch [{exp_id}: {fed_round+1}/{self.args.nb_rounds}]', end='')
 
             # global pruning step
             if self.args.pruning_type == 'server_pruning':
-                self.model, global_mask = self.pruning_handler.round_pruner(self.model, r, merge=True)
+                self.model, global_mask = self.sparsity_handler.round_sparsifier(self.model, 
+                                                                                 fed_round, 
+                                                                                 recovery_signals,
+                                                                                 global_mask,
+                                                                                 merge=True)
 
             # distribution step
             current_sparsity = sparsity_evaluator(self.model)
@@ -108,9 +113,9 @@ class Server:
             clients_dataset = [self.dataset_locals[i] for i in sampled_devices]
 
             # local pruning step (client training & upload models)
-            train_loss, updated_locals = self.clients_training(clients_dataset=clients_dataset,
-                                                               keeped_masks=global_mask,
-                                                               r=r)
+            train_loss, updated_locals, recovery_signals = self.clients_training(clients_dataset,
+                                                                                 global_mask,
+                                                                                 self.args.use_recovery_signal)
             self.server_lr_scheduler.step()
 
             # aggregation step
@@ -124,13 +129,13 @@ class Server:
             ellapsed_time = end_time - start_time
             self.logger.get_results(Results(train_loss, test_loss, test_acc, 
                                             current_sparsity*100, self.tot_comm_cost, 
-                                            r, exp_id, ellapsed_time, 
+                                            fed_round, exp_id, ellapsed_time, 
                                             self.server_lr_scheduler.get_last_lr()[0]))
 
         return self.container, self.model
 
-    def clients_training(self, clients_dataset, r, keeped_masks=None, recovery=False):
-        updated_locals, local_sparsity = [], []
+    def clients_training(self, clients_dataset, keeped_masks=None, use_recovery_signal=False):
+        updated_locals, local_sparsity, recovery_signals, train_acc = [], [], [], []
         train_loss, _cnt = 0, 0
 
         for _cnt, dataset in enumerate(clients_dataset):
@@ -141,24 +146,39 @@ class Server:
             if keeped_masks is not None:    
                 # get and apply pruned mask from global
                 mask_adder(self.locals.model, keeped_masks)
-                train_loss += self.locals.train()
+                local_loss, local_acc = self.locals.train()
+                train_loss += local_loss
+                train_acc.append(local_acc)
                 mask_merger(self.locals.model)                
                 
             else:
-                train_loss += self.locals.train()
-
+                local_loss, local_acc = self.locals.train()
+                train_loss += local_loss
+                train_acc.append(local_acc)
+                
             """ Sparsity """
             local_sparsity.append(sparsity_evaluator(self.locals.model))
-
+            
             """ Uploading """
             self.tot_comm_cost += self.init_cost * (1 - local_sparsity[-1])
             updated_locals.append(self.locals.upload_model())
+            
+            """ Recovery Signal """
+            if self.args.use_recovery_signal:
+                local_recovery_signal = self.sparsity_handler.get_local_signal(self.locals,
+                                                                               keeped_masks,
+                                                                               topk=self.args.local_topk,
+                                                                               as_mask=self.args.signal_as_mask)
+                recovery_signals.append(local_recovery_signal)
+            
+            # reset local model
             self.locals.reset()
-
+        
+        print(f'Avg Up Spars : {round(sum(local_sparsity)/len(local_sparsity), 4):.3f}\n')
         train_loss /= (_cnt+1)
-        print(f'Avg Up Spars : {round(sum(local_sparsity)/len(local_sparsity), 4):.3f}')
+        print(f'Local Train Acc : {train_acc}\n')
 
-        return train_loss, updated_locals
+        return train_loss, updated_locals, recovery_signals
 
     def aggregation_models(self, updated_locals):
         self.model.load_state_dict(copy.deepcopy(self.aggregate_model_func(updated_locals)))

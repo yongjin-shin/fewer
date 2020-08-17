@@ -1,5 +1,5 @@
 # federated arguments
-nb_rounds: 800 # communication rounds
+nb_rounds: 300 # communication rounds
 nb_devices: 100  # 로컬 클라이언트 수
 nb_server_data: 0  # 서버가 지니고 있는 데이터 개수
 local_ep: 5  # 로컬 모델 update 횟수
@@ -7,19 +7,32 @@ local_bs: 50  # 로컬 Training Batch Size
 ratio_clients_per_round: 0.1  # 한 라운드에 몇 명에게 보낼까?
 aggregation_alg: 'fedavg' # aggregtion algorithm
 
-# fedPR arguments
-pruning: True
+# pruning arguments
+pruning: False
+>>>>>>> refactor
 pruning_type: 'server_pruning'
-
-plan: [0, 780, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
+plan: [0, 280, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
 target_sparsity: 0.9
 base_sparsity: 0.0
 plan_type: 'reverse'
-decay_type: 'gradual'
+decay_type: 'linear'
 
+# recovering arguments
+use_recovery_signal: False
+local_topk: 0.0
+signal_as_mask: False
+
+# global regularizer arguments
+global_alpha: 0.0
+global_loss_type: 'smooth_l1'
+no_reg_to_recover: False
 
 # model arguments
+<<<<<<< HEAD
 model: 'res8' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res8
+=======
+model: 'cifarcnn' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res
+>>>>>>> refactor
 hidden: 256
 loss_func: 'CrossEntropy'
 lr: 0.01
@@ -40,4 +53,5 @@ cuda_type: 0  # 0, 1
 server_location: 'cpu'  # gpu, cpu
 seed: 100
 nb_exp_reps: 1  # 반복실험 횟수
+exp_name: 'test'
 
