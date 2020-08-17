@@ -89,6 +89,12 @@ def read_argv():
     parser.add_argument('--pruning_type', type=str)
     parser.add_argument('--plan_type', type=str)
     parser.add_argument('--decay_type', type=str)
+    parser.add_argument('--use_recovery_signal', type=str)
+    parser.add_argument('--local_topk', type=float)
+    parser.add_argument('--signal_as_mask', type=str)
+    parser.add_argument('--global_loss_type', type=str)
+    parser.add_argument('--global_alpha', type=float)
+    parser.add_argument('--no_reg_to_recover', type=str)
     parser.add_argument('--device', type=str)
     parser.add_argument('--scheduler', type=str)
     parser.add_argument('--target_sparsity', type=float)
@@ -134,6 +140,16 @@ def read_argv():
     args.decay_type = additional_args.decay_type if additional_args.decay_type is not None else args.decay_type
     args.target_sparsity = additional_args.target_sparsity if additional_args.target_sparsity is not None else args.target_sparsity
     
+    args.use_recovery_signal = str2bool(additional_args.use_recovery_signal \
+                                        if additional_args.use_recovery_signal is not None else args.use_recovery_signal)
+    args.signal_as_mask = str2bool(additional_args.signal_as_mask \
+                                   if additional_args.signal_as_mask is not None else args.signal_as_mask)
+    args.local_topk = additional_args.local_topk if additional_args.local_topk is not None else args.local_topk
+    
+    args.global_loss_type = additional_args.global_loss_type if additional_args.global_loss_type is not None else args.global_loss_type
+    args.global_alpha = additional_args.global_alpha if additional_args.global_alpha is not None else args.global_alpha
+    args.no_reg_to_recover = str2bool(additional_args.no_reg_to_recover) if additional_args.no_reg_to_recover is not None else args.no_reg_to_recover
+
     if args.exp_name is None:
         args.exp_name = make_exp_name(args)
     
