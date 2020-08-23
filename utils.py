@@ -99,6 +99,8 @@ def read_argv():
     parser.add_argument('--use_recovery_signal', type=str)
     parser.add_argument('--local_topk', type=float)
     parser.add_argument('--signal_as_mask', type=str)
+    parser.add_argument('--mixup_alpha', type=float)
+    parser.add_argument('--learn_from_init', type=str)
     parser.add_argument('--global_loss_type', type=str)
     parser.add_argument('--global_alpha', type=float)
     parser.add_argument('--no_reg_to_recover', type=str)
@@ -155,8 +157,12 @@ def read_argv():
     
     args.global_loss_type = additional_args.global_loss_type if additional_args.global_loss_type is not None else args.global_loss_type
     args.global_alpha = additional_args.global_alpha if additional_args.global_alpha is not None else args.global_alpha
-    args.no_reg_to_recover = str2bool(additional_args.no_reg_to_recover) if additional_args.no_reg_to_recover is not None else args.no_reg_to_recover
+    args.no_reg_to_recover = str2bool(additional_args.no_reg_to_recover if additional_args.no_reg_to_recover is not None else args.no_reg_to_recover)
 
+    # others
+    args.mixup_alpha = additional_args.mixup_alpha if additional_args.mixup_alpha is not None else args.mixup_alpha
+    args.learn_from_init = str2bool(additional_args.learn_from_init if additional_args.learn_from_init is not None else args.learn_from_init)
+    
     if args.exp_name is None:
         args.exp_name = make_exp_name(args)
     

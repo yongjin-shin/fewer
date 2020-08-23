@@ -40,6 +40,9 @@ class Server:
         self.init_cost = 0
         self.make_model()
         self.make_opt()
+        
+        if args.learn_from_init:
+            self.init_model = copy.deepcopy(self.model)
 
         # misc
         self.container = []
@@ -145,7 +148,11 @@ class Server:
 
         for _cnt, dataset in enumerate(clients_dataset):
             self.locals.get_dataset(client_dataset=dataset)
-            self.locals.get_model(server_model=self.model.state_dict())
+            if self.args.learn_from_init:
+                self.locals.get_model(server_model=self.init_model.state_dict())
+            else:
+                self.locals.get_model(server_model=self.model.state_dict())
+            
             self.locals.get_lr(server_lr=self.server_lr_scheduler.get_last_lr()[0])
 
             if keeped_masks is not None:    
@@ -205,3 +212,4 @@ class Server:
 
     def get_global_model(self):
         return self.model
+

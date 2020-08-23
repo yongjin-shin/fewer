@@ -23,7 +23,7 @@ signal_as_mask: False
 
 # global regularizer arguments
 global_alpha: 0.0
-global_loss_type: 'smooth_l1'
+global_loss_type: 'none'
 no_reg_to_recover: False
 
 # model arguments
@@ -34,13 +34,17 @@ lr: 0.01
 optimizer: 'sgd'  # 'sgd'
 momentum: 0.9
 weight_decay: 0.0000
-scheduler: 'linear'  # cosine | linear | constant | step
+scheduler: 'constant'  # cosine | linear | constant | step
 
 
 # dataset arguments
 dataset: 'cifar10' # mnist, fmnist, cifar10
 iid: False  # True, False
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
+
+# others
+mixup_alpha: 1 # 0이면 mixup 사용 x
+learn_from_init: false
 
 # misc
 gpu: True  # True, False

@@ -1,4 +1,5 @@
 import torch, math, copy
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -19,7 +20,7 @@ class Local:
         self.criterion = nn.CrossEntropyLoss()
         self.epochs = self.args.local_ep
 
-    def train(self):
+    def train(self, fed_round=None):
         if self.args.global_loss_type != 'none':
             self.keep_global()
 
@@ -31,8 +32,15 @@ class Local:
                 # forward pass
                 data = data.to(self.args.device)
                 target = target.to(self.args.device)
-                output = self.model(data)
-                loss = self.criterion(output, target)
+                
+                if self.args.mixup_alpha != 0:
+                    mixed_data, target_a, target_b, lam = self._mixup_data(data, target, self.args.mixup_alpha)
+                    output = self.model(mixed_data)
+                    loss = self._mixup_criterion(output, target_a, target_b, lam)
+                
+                else:
+                    output = self.model(data)
+                    loss = self.criterion(output, target)
                 
                 if self.args.global_loss_type != 'none':
                     loss += (self.args.global_alpha * self.loss_to_round_global())
@@ -102,7 +110,7 @@ class Local:
         self.optim = None
         self.lr_scheduler = None
         self.round_global = None
-
+    
     def keep_global(self):
         self.round_global = copy.deepcopy(self.model)
         for params in self.round_global.parameters():
@@ -123,3 +131,17 @@ class Local:
                 loss += -F.cosine_similarity(param1.view(-1), param2.view(-1), dim=0)
         
         return loss
+        
+    def _mixup_data(self, data, target, alpha=1.0):
+        lam = np.random.beta(alpha, alpha) if alpha > 0 else 1
+
+        batch_size = data.size(0)
+        index = torch.randperm(batch_size).to(self.args.device)
+        
+        mixed_data = lam*data + (1-lam)*data[index, :]
+        target_a, target_b = target, target[index]
+        
+        return mixed_data, target_a, target_b, lam
+    
+    def _mixup_criterion(self, output, target_a, target_b, lam):
+        return lam * self.criterion(output, target_a) + (1 - lam) * self.criterion(output, target_b)
