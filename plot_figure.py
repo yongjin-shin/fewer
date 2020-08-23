@@ -109,7 +109,7 @@ def plot(args, x, y, data, xlim=None, ylim=None):
         plt.ylabel(y, fontsize=20)
 
     plt.xlim(xlim[0], xlim[1]) if xlim is not None else None
-    plt.ylim(ylim[0], ylim[1]) if ylim is not None else None
+    plt.ylim(10, 80)
     plt.legend(fontsize=18, loc='best')
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     plt.grid()
