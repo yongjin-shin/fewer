@@ -1,7 +1,10 @@
 import torch, copy
+import numpy as np
 from .models import *
+import seaborn as sns
+import matplotlib.pylab as plt
 
-__all__ = ['create_nets', 'get_size', 'get_server_location', 'get_device', 'get_models_variance']
+__all__ = ['create_nets', 'get_size', 'get_server_location', 'get_device', 'get_models_variance', 'local_clippers', 'get_models_covariance']
 
 
 MODELS = {'mlp': MLP, 'deep_mlp': DeepMLP, 'testcnn': TestCNN,'mnistcnn': MnistCNN, 'cifarcnn': CifarCNN,
@@ -18,6 +21,8 @@ def create_nets(args, location, num_classes=10):
     elif 'cifar' in args.dataset:
         dim_in = 3
         img_size = 3*32*32
+        if 'cifar100' == args.dataset:
+            num_classes = 100
     else:
         raise NotImplementedError
 
@@ -98,12 +103,6 @@ def get_variance(server, locals, device):
     server_vecs = get_vec(calc_order, server, device)
     local_vecs = get_local_vec(calc_order, locals, device)
 
-    # server_norm = torch.norm(server_vecs)
-    # local_norms = torch.norm(local_vecs, dim=0)
-    #
-    # inner_prod = server_vecs.T @ local_vecs
-    # normalizer = server_norm * local_norms
-    # ret = torch.var(inner_prod / normalizer)
     cos = torch.nn.CosineSimilarity(dim=0)
     ret = torch.log(torch.var(cos(server_vecs.repeat(1, local_vecs.shape[-1]),
                                   local_vecs)))
@@ -113,3 +112,47 @@ def get_variance(server, locals, device):
 
 def get_models_variance(server, locals, device):
     return get_variance(server, locals, device)
+
+
+def sim_matrix(a, b, eps=1e-6):
+    """
+    added eps for numerical stability
+    """
+    a_n, b_n = a.norm(dim=0)[None, :], b.norm(dim=0)[None, :]
+    a_norm = a / torch.max(a_n, eps * torch.ones_like(a_n))
+    b_norm = b / torch.max(b_n, eps * torch.ones_like(b_n))
+
+    sim_mt = torch.empty(a_norm.size()[-1], a_norm.size()[-1])
+    for i in range(a_norm.size()[-1]):
+        for j in range(a_norm.size()[-1]):
+            sim_mt[i, j] = torch.dot(a_norm[:, i], b_norm[:, j])
+    return sim_mt
+
+
+def get_models_covariance(locals, device, title):
+    calc_order = [k for k in locals[0]]
+    local_vecs = get_local_vec(calc_order, locals, device)
+    ret = sim_matrix(local_vecs, local_vecs)
+    sns.heatmap(ret, linewidth=0.5)
+    plt.title(f"Round: {title}")
+    return plt
+
+
+def local_clippers(args, loss, weights):
+    orig_idx = set(np.arange(len(loss)))
+    if args.clip_type == 'half':
+        idx = np.argsort(loss)
+        idx = idx[:int(len(idx)/2)] if args.clip_dir == 'good' else idx[int(len(idx) / 2):]
+        _remained = list(orig_idx - set(idx))
+        return np.array(loss)[idx], np.array(loss)[_remained], np.array(weights)[idx]
+
+    elif args.clip_type == 'std':
+        mean = np.mean(loss)
+        std = np.std(loss)
+        idx = np.arange(len(loss))
+        idx = idx[np.array(loss) <= mean-std] if args.clip_dir == 'good' else idx[np.array(loss) >= mean+std]
+        _remained = list(orig_idx - set(idx))
+        return np.array(loss)[idx], np.array(loss)[_remained], np.array(weights)[idx]
+
+    else:
+        return loss, [], weights

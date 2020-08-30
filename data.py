@@ -40,7 +40,11 @@ class Preprocessor:
             Path(path).mkdir(parents=True, exist_ok=True)
             dataset_train = datasets.CIFAR10(path, train=True, transform=train_transform, download=True)
             dataset_test = datasets.CIFAR10(path, train=False, transform=test_transform, download=True)
-            
+        elif self.args.dataset == 'cifar100':
+            train_transform, test_transform = self.cifar_data_augmentation()
+            Path(path).mkdir(parents=True, exist_ok=True)
+            dataset_train = datasets.CIFAR100(path, train=True, transform=train_transform, download=True)
+            dataset_test = datasets.CIFAR100(path, train=False, transform=test_transform, download=True)
         else:
             exit('Error: unrecognized dataset')
 

@@ -46,8 +46,8 @@ class Local:
         
         
         with torch.no_grad():
-            correct, data_num = 0, 0
 
+            correct, data_num = 0, 0
             for itr, (data, target) in enumerate(self.data_loader):
                 data_num += data.size(0)
                 data = data.to(self.args.device)
@@ -55,8 +55,8 @@ class Local:
                 output = self.model(data)
                 pred = torch.max(output, dim=1)[1]
                 correct += (pred == target).sum().item()
-
             local_acc = round(correct/data_num, 4)
+            # local_acc = 0
 
         self.model.to(self.args.server_location)
         local_loss = train_loss / ((self.args.local_ep) * (itr+1))

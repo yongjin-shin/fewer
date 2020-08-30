@@ -19,6 +19,7 @@ class Logger:
         self.exp_results = {}
         self.path = f"./log"
 
+        self.log = None
         self.args = None
         self.tot_sparsity = None
 
@@ -29,9 +30,11 @@ class Logger:
         # Create saving folder
         self.path = f"{self.path}/[{args.model}-{args.dataset}]{args.exp_name}"
         Path(self.path).mkdir(parents=True, exist_ok=True)
+        Path(f"{self.path}/heatmap").mkdir(parents=True, exist_ok=True)
         for k in sorted(vars(args).keys()):
             print("{}: {}".format(k, vars(args)[k]))
         print(f"\033[91mPath: {self.path}\033[00m")
+        self.log = open(f"{self.path}/logfile.log", "a")
 
     def save_model(self, param, exp_id):
         Path(f"{self.path}/{exp_id}").mkdir(parents=True, exist_ok=True)
@@ -42,12 +45,14 @@ class Logger:
         self.add_results(results)
 
     def print_data(self, results):
-        print(f"Train loss: {results.train_loss:.3f} "
-              f"Test loss: {results.test_loss:.3f} | "
-              f"Acc: {results.test_acc:.3f} | "
-              f"Time: {results.ellapsed_time:.2f}s | "
-              f"lr: {results.lr:.5f} | "
-              f"var: {results.var:.5f} | ")
+        f = f"Train loss: {results.train_loss:.3f} "\
+            f"Test loss: {results.test_loss:.3f} | "\
+            f"Acc: {results.test_acc:.3f} | "\
+            f"Time: {results.ellapsed_time:.2f}s | "\
+            f"lr: {results.lr:.5f} | "\
+            f"var: {results.var:.5f} | "
+        print(f)
+        self.log.write(f)
 
     def save_data(self):
         with open(f"{self.path}/results.json", 'w') as fp:
@@ -82,6 +87,11 @@ class Logger:
         with open(f_name, 'w') as outfile:
             yaml.dump(self.args, outfile, default_flow_style=False)
 
+    def plot_heatmap(self, plt, title):
+        plt.savefig(f"{self.path}/heatmap/{title}.png")
+        plt.show()
+        plt.close()
+
 
 def read_argv():
     parser = argparse.ArgumentParser(description='For Multiple experiments')
@@ -105,11 +115,15 @@ def read_argv():
     parser.add_argument('--device', type=str)
     parser.add_argument('--scheduler', type=str)
     parser.add_argument('--target_sparsity', type=float)
+    parser.add_argument('--base_sparsity', type=float)
     parser.add_argument('--local_ep', type=int)
     parser.add_argument('--cuda_type', type=int)
     parser.add_argument('--weight_decay', type=float)
     parser.add_argument('--server_location', type=str)
     parser.add_argument('--dataset', type=str)
+    parser.add_argument('--clip_type', type=str)
+    parser.add_argument('--clip_dir', type=str)
+    parser.add_argument('--ratio_clients_per_round', type=float)
     parser.add_argument('--exp_name', type=str, default=None)
     additional_args = parser.parse_args()
 
@@ -144,9 +158,10 @@ def read_argv():
     args.plan = additional_args.plan if additional_args.plan is not None else args.plan
     args.pruning_type = additional_args.pruning_type if additional_args.pruning_type is not None else args.pruning_type
     args.plan_type = additional_args.plan_type if additional_args.plan_type is not None else args.plan_type
-    args.decay_type = additional_args.decay_type if additional_args.decay_type is not None else args.decay_type
+    args.base_sparsity = additional_args.base_sparsity if additional_args.base_sparsity is not None else args.base_sparsity
     args.target_sparsity = additional_args.target_sparsity if additional_args.target_sparsity is not None else args.target_sparsity
-    args.exp_name = additional_args.exp_name if additional_args.exp_name is not None else make_exp_name(args)    
+
+    args.decay_type = additional_args.decay_type if additional_args.decay_type is not None else args.decay_type
     args.use_recovery_signal = str2bool(additional_args.use_recovery_signal \
                                         if additional_args.use_recovery_signal is not None else args.use_recovery_signal)
     args.signal_as_mask = str2bool(additional_args.signal_as_mask \
@@ -157,9 +172,13 @@ def read_argv():
     args.global_alpha = additional_args.global_alpha if additional_args.global_alpha is not None else args.global_alpha
     args.no_reg_to_recover = str2bool(additional_args.no_reg_to_recover) if additional_args.no_reg_to_recover is not None else args.no_reg_to_recover
 
+    args.clip_type = additional_args.clip_type if additional_args.clip_type is not None else args.clip_type
+    args.clip_dir = additional_args.clip_dir if additional_args.clip_dir is not None else args.clip_dir
+    args.ratio_clients_per_round = additional_args.ratio_clients_per_round if additional_args.ratio_clients_per_round is not None else args.ratio_clients_per_round
+
     if args.exp_name is None:
-        args.exp_name = make_exp_name(args)
-    
+        args.exp_name = additional_args.exp_name if additional_args.exp_name is not None else make_exp_name(args)
+
     args.model = args.model.lower()
     args.dataset = args.dataset.lower()
     return args
@@ -167,9 +186,12 @@ def read_argv():
 
 def make_exp_name(args):
     if args.pruning:
-        title = f"{args.pruning_type}_{args.plan_type}_{args.target_sparsity}_lr_"
+        title = f"{args.pruning_type}_{args.plan_type}_{args.decay_type}_{args.target_sparsity}_lr_"
     else:
         title = "vanilla_lr_"
+
+    if args.clip_type != 'None':
+        title += f"clip_{args.clip_type}_{args.clip_dir}_"
 
     return title + f"{args.scheduler}_{args.lr}_localep_{args.local_ep}"
 

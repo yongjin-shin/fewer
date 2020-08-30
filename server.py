@@ -10,7 +10,7 @@ from train_tools import *
 from utils import *
 
 __all__ = ['Server']
-
+np.set_printoptions(precision=3)
 
 class Server:
     def __init__(self, args, logger):
@@ -113,12 +113,16 @@ class Server:
             clients_dataset = [self.dataset_locals[i] for i in sampled_devices]
 
             # local pruning step (client training & upload models)
-            train_loss, updated_locals = self.clients_training(clients_dataset=clients_dataset,
-                                                               keeped_masks=global_mask,
-                                                               r=r)
-            model_variance = get_models_variance(self.model.state_dict(), updated_locals, self.args.device)
+            train_loss, updated_locals, recovery_signals = self.clients_training(clients_dataset=clients_dataset,
+                                                                                 keeped_masks=global_mask,
+                                                                                 use_recovery_signal=self.args.use_recovery_signal)
 
-            self.server_lr_scheduler.step()
+            # new_train_loss, else_train_loss, updated_locals = local_clippers(self.args, train_loss, updated_locals)
+            # print(f"Clipped {new_train_loss} vs {else_train_loss}\n")
+
+            model_variance = 0  #get_models_variance(self.model.state_dict(), updated_locals, self.args.device)
+            if fed_round % 10 == 0:
+                self.logger.plot_heatmap(get_models_covariance(updated_locals, self.args.device, fed_round), fed_round)
 
             # aggregation step
             self.aggregation_models(updated_locals)
@@ -129,17 +133,18 @@ class Server:
             test_loss, test_acc = self.test()
             end_time = time.time()
             ellapsed_time = end_time - start_time
-            self.logger.get_results(Results(train_loss, test_loss, test_acc, 
+            self.logger.get_results(Results(np.mean(train_loss), test_loss, test_acc,
                                             current_sparsity*100, self.tot_comm_cost, 
                                             fed_round, exp_id, ellapsed_time, 
                                             self.server_lr_scheduler.get_last_lr()[0],
                                             model_variance))
+            self.server_lr_scheduler.step()
 
         return self.container, self.model
 
     def clients_training(self, clients_dataset, keeped_masks=None, use_recovery_signal=False):
         updated_locals, local_sparsity, recovery_signals, train_acc = [], [], [], []
-        train_loss, _cnt = 0, 0
+        train_loss, _cnt = [], 0
 
         for _cnt, dataset in enumerate(clients_dataset):
             self.locals.get_dataset(client_dataset=dataset)
@@ -150,13 +155,13 @@ class Server:
                 # get and apply pruned mask from global
                 mask_adder(self.locals.model, keeped_masks)
                 local_loss, local_acc = self.locals.train()
-                train_loss += local_loss
+                train_loss.append(local_loss)
                 train_acc.append(local_acc)
                 mask_merger(self.locals.model)                
                 
             else:
                 local_loss, local_acc = self.locals.train()
-                train_loss += local_loss
+                train_loss.append(local_loss)
                 train_acc.append(local_acc)
                 
             """ Sparsity """
@@ -178,8 +183,8 @@ class Server:
             self.locals.reset()
         
         print(f'Avg Up Spars : {round(sum(local_sparsity)/len(local_sparsity), 4):.3f}\n')
-        train_loss /= (_cnt+1)
-        print(f'Local Train Acc : {train_acc}\n')
+        # train_loss = np.mean(train_loss)
+        print(f'Local Train Acc : {train_acc}')
 
         return train_loss, updated_locals, recovery_signals
 

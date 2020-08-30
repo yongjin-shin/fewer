@@ -2,7 +2,7 @@
 nb_rounds: 300 # communication rounds
 nb_devices: 100  # 로컬 클라이언트 수
 nb_server_data: 0  # 서버가 지니고 있는 데이터 개수
-local_ep: 5  # 로컬 모델 update 횟수
+local_ep: 50  # 로컬 모델 update 횟수
 local_bs: 50  # 로컬 Training Batch Size
 ratio_clients_per_round: 0.1  # 한 라운드에 몇 명에게 보낼까?
 aggregation_alg: 'fedavg' # aggregtion algorithm
@@ -10,9 +10,9 @@ aggregation_alg: 'fedavg' # aggregtion algorithm
 # pruning arguments
 pruning: False
 pruning_type: 'server_pruning'
-plan: [0, 280, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
-target_sparsity: 0.9
-base_sparsity: 0.0
+plan: [0, 20, 0] # [warming_rounds, pruning_rounds, tuning_rounds]
+target_sparsity: 0.3
+base_sparsity: 0.1
 plan_type: 'reverse'
 decay_type: 'linear'
 
@@ -22,7 +22,7 @@ local_topk: 0.0
 signal_as_mask: False
 
 # global regularizer arguments
-global_alpha: 0.0
+global_alpha: 0
 global_loss_type: 'smooth_l1'
 no_reg_to_recover: False
 
@@ -34,13 +34,13 @@ lr: 0.01
 optimizer: 'sgd'  # 'sgd'
 momentum: 0.9
 weight_decay: 0.0000
-scheduler: 'linear'  # cosine | linear | constant | step
+scheduler: 'constant'  # cosine | linear | constant | step
 
 
 # dataset arguments
-dataset: 'cifar10' # mnist, fmnist, cifar10
+dataset: 'cifar10' # mnist, fmnist, cifar10, cifar100
 iid: False  # True, False
-nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
+nb_max_classes: 20  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
 # misc
 gpu: True  # True, False
@@ -48,5 +48,8 @@ cuda_type: 0  # 0, 1
 server_location: 'cpu'  # gpu, cpu
 seed: 100
 nb_exp_reps: 1  # 반복실험 횟수
-exp_name: 'test'
+exp_name:
 
+# bias & variance test
+clip_type: 'None'  # std, half
+clip_dir: 'good'  # good, bad
