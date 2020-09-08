@@ -24,36 +24,82 @@ def pruner(model, amount, random=False):
     return model
 
 
-def plan_organizer(plan, target_sparsity, base_sparsity=0, plan_type='base', decay_type='gradual'):
+# def plan_organizer(plan, target_sparsity, base_sparsity=0, plan_type='base', decay_type='gradual'):
+#     # unpack training plans
+#     warming_r, pruning_r, tuning_r = plan
+#     # pruning plan
+#     pruning_plan = []
+#
+#     for r in range(warming_r):
+#         if plan_type == 'reverse':
+#             pruning_plan.append(target_sparsity)
+#         else:
+#             pruning_plan.append(base_sparsity)
+#
+#     for r in range(pruning_r):
+#         # gradually increase to target sparsity
+#         if plan_type == 'base':
+#             sparsity = target_sparsity - \
+#             (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r-1, decay_type)
+#
+#         # gradually decay from target sparsity
+#         elif plan_type == 'reverse':
+#             sparsity = base_sparsity + \
+#             (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r-1, decay_type)
+#
+#         pruning_plan.append(sparsity)
+#
+#     for r in range(tuning_r):
+#         pruning_plan.append(pruning_plan[-1])
+#
+#     pruning_plan = [round(elem, 4) for elem in pruning_plan]
+#
+#     return pruning_plan
+
+
+def plan_organizer(plan, target_sparsity, base_sparsity=0, recovery_sparsity=0.5, plan_type='base',
+                   decay_type='gradual'):
     # unpack training plans
-    warming_r, pruning_r, tuning_r = plan
+    warming_r, pruning_r, recovering_r, tuning_r = plan
+
+    # if 'recovery' not in plan_type:
+    #     tuning_r += recovering_r
+    #     recovering_r = 0
+
     # pruning plan
     pruning_plan = []
 
     for r in range(warming_r):
-        if plan_type == 'reverse':
+        if 'reverse' in plan_type:
             pruning_plan.append(target_sparsity)
         else:
             pruning_plan.append(base_sparsity)
 
     for r in range(pruning_r):
         # gradually increase to target sparsity
-        if plan_type == 'base':
+        sparsity = -1.0
+        if 'base' in plan_type:
             sparsity = target_sparsity - \
-            (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r-1, decay_type)
-            
+                       (target_sparsity - base_sparsity) * _decay_rate(r, pruning_r - 1, decay_type)
+
         # gradually decay from target sparsity
-        elif plan_type == 'reverse':
+        elif 'reverse' in plan_type:
             sparsity = base_sparsity + \
-            (target_sparsity-base_sparsity) * _decay_rate(r, pruning_r-1, decay_type)
-        
+                       (target_sparsity - base_sparsity) * _decay_rate(r, pruning_r - 1, decay_type)
+
+        pruning_plan.append(sparsity)
+
+    for r in range(recovering_r):
+        sparsity = recovery_sparsity + \
+                   (target_sparsity - recovery_sparsity) * _decay_rate(r, recovering_r - 1, decay_type)
+
         pruning_plan.append(sparsity)
 
     for r in range(tuning_r):
         pruning_plan.append(pruning_plan[-1])
-        
+
     pruning_plan = [round(elem, 4) for elem in pruning_plan]
-    
+
     return pruning_plan
 
 
@@ -66,6 +112,10 @@ def _decay_rate(r, pruning_r, decay_type):
         
     elif decay_type == 'reverse_gradual':
         ratio = (1- r/pruning_r)**(1/3)
+
+    else:
+        raise RuntimeError
+
     return ratio
 
 

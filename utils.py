@@ -106,6 +106,7 @@ def read_argv():
     parser.add_argument('--plan_type', type=str)
     parser.add_argument('--plan', nargs='+', type=int)
     parser.add_argument('--decay_type', type=str)
+    parser.add_argument('--recovery_type', type=str)
     parser.add_argument('--use_recovery_signal', type=str)
     parser.add_argument('--local_topk', type=float)
     parser.add_argument('--signal_as_mask', type=str)
@@ -125,6 +126,7 @@ def read_argv():
     parser.add_argument('--clip_dir', type=str)
     parser.add_argument('--ratio_clients_per_round', type=float)
     parser.add_argument('--exp_name', type=str, default=None)
+    parser.add_argument('--freezing_interval', type=int)
     additional_args = parser.parse_args()
 
     yaml_file = additional_args.config_file
@@ -162,6 +164,7 @@ def read_argv():
     args.target_sparsity = additional_args.target_sparsity if additional_args.target_sparsity is not None else args.target_sparsity
 
     args.decay_type = additional_args.decay_type if additional_args.decay_type is not None else args.decay_type
+    args.recovery_type = additional_args.recovery_type if additional_args.recovery_type is not None else args.recovery_type
     args.use_recovery_signal = str2bool(additional_args.use_recovery_signal \
                                         if additional_args.use_recovery_signal is not None else args.use_recovery_signal)
     args.signal_as_mask = str2bool(additional_args.signal_as_mask \
@@ -175,6 +178,7 @@ def read_argv():
     args.clip_type = additional_args.clip_type if additional_args.clip_type is not None else args.clip_type
     args.clip_dir = additional_args.clip_dir if additional_args.clip_dir is not None else args.clip_dir
     args.ratio_clients_per_round = additional_args.ratio_clients_per_round if additional_args.ratio_clients_per_round is not None else args.ratio_clients_per_round
+    args.freezing_interval = additional_args.freezing_interval if additional_args.freezing_interval is not None else args.freezing_interval
 
     if args.exp_name is None:
         args.exp_name = additional_args.exp_name if additional_args.exp_name is not None else make_exp_name(args)

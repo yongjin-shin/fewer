@@ -1,9 +1,11 @@
 import torch, math, copy
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from train_tools.utils import create_nets
 from train_tools.SparsityController.recovering_utils import *
+import numpy as np
+import matplotlib.pyplot as plt
 
 __all__ = ['Local']
 
@@ -12,6 +14,10 @@ class Local:
     def __init__(self, args):
         self.args = args
         self.data_loader = None
+
+        # Dataset
+        self.valid_loader = None
+        self.valid_dataset = None
 
         # model & optimizer
         self.model = create_nets(self.args, 'LOCAL').to(self.args.server_location)
@@ -39,31 +45,45 @@ class Local:
                 
                 # backward pass
                 self.optim.zero_grad()
+                # self.apply_partial_gradient(itr)
                 loss.backward()
                 self.optim.step()
 
                 train_loss += loss.detach().item()
-        
-        
-        with torch.no_grad():
 
-            correct, data_num = 0, 0
-            for itr, (data, target) in enumerate(self.data_loader):
-                data_num += data.size(0)
-                data = data.to(self.args.device)
-                target = target.to(self.args.device)
-                output = self.model(data)
-                pred = torch.max(output, dim=1)[1]
-                correct += (pred == target).sum().item()
-            local_acc = round(correct/data_num, 4)
-            # local_acc = 0
+        # with torch.no_grad():
+        #     correct, data_num = 0, 0
+        #     # t = []
+        #     for itr, (data, target) in enumerate(self.data_loader):
+        #         data_num += data.size(0)
+        #         data = data.to(self.args.device)
+        #         target = target.to(self.args.device)
+        #         # t.append(target)
+        #         output = self.model(data)
+        #         pred = torch.max(output, dim=1)[1]
+        #         correct += (pred == target).sum().item()
+        #     local_acc = round(correct/data_num, 4)
+        #     # print(f"Local: {torch.unique(torch.cat(t))}")
+        #
+        #     valid_correct, data_num = 0, 0
+        #     # t = []
+        #     for itr, (data, target) in enumerate(self.valid_loader):
+        #         data_num += data.size(0)
+        #         data = data.to(self.args.device)
+        #         target = target.to(self.args.device)
+        #         # t.append(target)
+        #         output = self.model(data)
+        #         pred = torch.max(output, dim=1)[1]
+        #         valid_correct += (pred == target).sum().item()
+        #     valid_acc = round(valid_correct/data_num, 4)
+        #     # print(f"Valid: {torch.unique(torch.tensor(t))}")
 
+        local_acc, valid_acc = None, None
         self.model.to(self.args.server_location)
         local_loss = train_loss / ((self.args.local_ep) * (itr+1))
         
-        return local_loss, local_acc
-    
-    
+        return local_loss, local_acc, valid_acc
+
     def stack_grad(self):
         """stack gradient to local parameters"""
         self.model.to(self.args.device)
@@ -77,14 +97,41 @@ class Local:
             loss.backward()
             
         self.model.to(self.args.server_location)
-        
 
-    def get_dataset(self, client_dataset):
+    def get_dataset(self, client_dataset, valid_idx):
         if client_dataset.__len__() <= 0:
             raise RuntimeError
         else:
+            # self.plotter(client_dataset)
+            # self.plotter(Subset(self.valid_dataset, valid_idx))
             self.data_loader = DataLoader(client_dataset, batch_size=self.args.local_bs, shuffle=True)
-            
+            self.valid_loader = DataLoader(Subset(self.valid_dataset, valid_idx), shuffle=True)
+
+    def plotter(self, dataset):
+        loader = DataLoader(dataset, batch_size=1)
+        X, Y = [], []
+        for x, y in loader:
+            X.append(x.numpy())
+            Y.append(y.numpy())
+
+        x = np.concatenate(X).squeeze()
+        y = np.concatenate(Y).squeeze()
+        lb = np.unique(y)
+
+        fig = plt.figure(figsize=(10, 2))
+
+        for _l in lb:
+            _idx = np.random.choice(np.where(y == _l)[0], 5)
+            print(y[_idx])
+            for j, _i in enumerate(_idx):
+                fig.add_subplot(j+1, 1, j+1)
+                plt.imshow(x[_i])
+            plt.show()
+            plt.close()
+
+    def get_validset(self, valid_dataset):
+        self.valid_dataset = valid_dataset
+
     def get_model(self, server_model):
         self.model.load_state_dict(server_model)
         

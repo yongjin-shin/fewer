@@ -21,8 +21,10 @@ class SparsityHandler():
         """Prune weights (expected to be called before distribution)"""
         
         amount = self.sparsity_plan[fed_round]
+        prev_amount = self.sparsity_plan[fed_round - 1]
+        add_amount = round(prev_amount - amount, 6)
 
-        if len(recovery_signals) == 0:
+        if len(recovery_signals) == 0 or add_amount <= 0:
             if fed_round == 0:
                 model = pruner(model, amount, random=True)
                 print('\n------model is randomly initial pruned-----')
@@ -32,8 +34,6 @@ class SparsityHandler():
             keeped_mask = mask_collector(model)
         
         else:
-            prev_amount = self.sparsity_plan[fed_round-1]
-            add_amount = round(prev_amount - amount, 6)
             recovery_mask = signal_aggregator(recovery_signals, keeped_mask, topk=add_amount)
             mask_adder(model, recovery_mask)
             keeped_mask = recovery_mask
@@ -51,16 +51,23 @@ class SparsityHandler():
     
         return signal_mask
 
+    def get_server_signal(self, server, keeped_mask, topk=0.05, as_mask=True, method='stack_grad'):
+        if method == 'stack_grad':
+            server.stack_grad()
+            signal_mask = signal_getter(server.model, keeped_mask, topk, as_mask)
+        return [signal_mask]
+
     def _planner(self, args):        
         if args.pruning:
             assert sum(args.plan) == args.nb_rounds,\
             'plan should should be same with nb_rounds!'
             
-            sparsity_plan = plan_organizer(args.plan, 
-                                          args.target_sparsity,
-                                          args.base_sparsity,
-                                          args.plan_type,
-                                          args.decay_type)
+            sparsity_plan = plan_organizer(args.plan,
+                                           args.target_sparsity,
+                                           args.base_sparsity,
+                                           args.recovery_sparsity,
+                                           args.plan_type,
+                                           args.decay_type)
             
         else:
             sparsity_plan = [0] * args.nb_rounds
