@@ -113,9 +113,10 @@ class Server:
             clients_dataset = [self.dataset_locals[i] for i in sampled_devices]
 
             # local pruning step (client training & upload models)
-            train_loss, updated_locals = self.clients_training(clients_dataset=clients_dataset,
+            train_loss, updated_locals, recovery_signals = self.clients_training(clients_dataset=clients_dataset,
                                                                keeped_masks=global_mask,
-                                                               r=r)
+                                                               use_recovery_signal=self.args.use_recovery_signal)
+            
             model_variance = get_models_variance(self.model.state_dict(), updated_locals, self.args.device)
 
             self.server_lr_scheduler.step()
@@ -138,6 +139,7 @@ class Server:
         return self.container, self.model
 
     def clients_training(self, clients_dataset, keeped_masks=None, use_recovery_signal=False):
+    
         updated_locals, local_sparsity, recovery_signals, train_acc = [], [], [], []
         train_loss, _cnt = 0, 0
 
