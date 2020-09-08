@@ -14,7 +14,7 @@ plan: [0, 280, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
 target_sparsity: 0.9
 base_sparsity: 0.0
 plan_type: 'reverse'
-decay_type: 'linear'
+decay_type: 'gradual'
 
 # recovering arguments
 use_recovery_signal: False
@@ -30,11 +30,11 @@ no_reg_to_recover: False
 model: 'cifarcnn' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res
 hidden: 256
 loss_func: 'CrossEntropy'
-lr: 0.01
+lr: 0.03
 optimizer: 'sgd'  # 'sgd'
 momentum: 0.9
 weight_decay: 0.0000
-scheduler: 'linear'  # cosine | linear | constant | step
+scheduler: 'cosine'  # cosine | linear | constant | step
 
 
 # dataset arguments
@@ -48,5 +48,5 @@ cuda_type: 0  # 0, 1
 server_location: 'cpu'  # gpu, cpu
 seed: 100
 nb_exp_reps: 1  # 반복실험 횟수
-exp_name: 'test'
+exp_name:
 

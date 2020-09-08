@@ -146,7 +146,6 @@ def read_argv():
     args.plan_type = additional_args.plan_type if additional_args.plan_type is not None else args.plan_type
     args.decay_type = additional_args.decay_type if additional_args.decay_type is not None else args.decay_type
     args.target_sparsity = additional_args.target_sparsity if additional_args.target_sparsity is not None else args.target_sparsity
-    args.exp_name = additional_args.exp_name if additional_args.exp_name is not None else make_exp_name(args)    
     args.use_recovery_signal = str2bool(additional_args.use_recovery_signal \
                                         if additional_args.use_recovery_signal is not None else args.use_recovery_signal)
     args.signal_as_mask = str2bool(additional_args.signal_as_mask \
@@ -157,9 +156,7 @@ def read_argv():
     args.global_alpha = additional_args.global_alpha if additional_args.global_alpha is not None else args.global_alpha
     args.no_reg_to_recover = str2bool(additional_args.no_reg_to_recover) if additional_args.no_reg_to_recover is not None else args.no_reg_to_recover
 
-    if args.exp_name is None:
-        args.exp_name = make_exp_name(args)
-    
+    args.exp_name = additional_args.exp_name if additional_args.exp_name is not None else make_exp_name(args)
     args.model = args.model.lower()
     args.dataset = args.dataset.lower()
     return args

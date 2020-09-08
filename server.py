@@ -117,7 +117,8 @@ class Server:
                                                                keeped_masks=global_mask,
                                                                use_recovery_signal=self.args.use_recovery_signal)
             
-            model_variance = get_models_variance(self.model.state_dict(), updated_locals, self.args.device)
+            # model_variance = get_models_variance(self.model.state_dict(), updated_locals, self.args.device)
+            model_variance = 0
 
             self.server_lr_scheduler.step()
 
