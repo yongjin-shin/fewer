@@ -105,11 +105,13 @@ def read_argv():
     parser.add_argument('--device', type=str)
     parser.add_argument('--scheduler', type=str)
     parser.add_argument('--target_sparsity', type=float)
+    parser.add_argument('--base_sparsity', type=float)
     parser.add_argument('--local_ep', type=int)
     parser.add_argument('--cuda_type', type=int)
     parser.add_argument('--weight_decay', type=float)
     parser.add_argument('--server_location', type=str)
     parser.add_argument('--dataset', type=str)
+    parser.add_argument('--iid', type=str)
     parser.add_argument('--exp_name', type=str, default=None)
     additional_args = parser.parse_args()
 
@@ -146,6 +148,7 @@ def read_argv():
     args.plan_type = additional_args.plan_type if additional_args.plan_type is not None else args.plan_type
     args.decay_type = additional_args.decay_type if additional_args.decay_type is not None else args.decay_type
     args.target_sparsity = additional_args.target_sparsity if additional_args.target_sparsity is not None else args.target_sparsity
+    args.base_sparsity = additional_args.base_sparsity if additional_args.base_sparsity is not None else args.base_sparsity
     args.use_recovery_signal = str2bool(additional_args.use_recovery_signal \
                                         if additional_args.use_recovery_signal is not None else args.use_recovery_signal)
     args.signal_as_mask = str2bool(additional_args.signal_as_mask \
@@ -155,6 +158,7 @@ def read_argv():
     args.global_loss_type = additional_args.global_loss_type if additional_args.global_loss_type is not None else args.global_loss_type
     args.global_alpha = additional_args.global_alpha if additional_args.global_alpha is not None else args.global_alpha
     args.no_reg_to_recover = str2bool(additional_args.no_reg_to_recover) if additional_args.no_reg_to_recover is not None else args.no_reg_to_recover
+    args.iid = str2bool(additional_args.iid) if additional_args.iid is not None else args.iid
 
     args.exp_name = additional_args.exp_name if additional_args.exp_name is not None else make_exp_name(args)
     args.model = args.model.lower()
@@ -163,12 +167,20 @@ def read_argv():
 
 
 def make_exp_name(args):
-    if args.pruning:
-        title = f"{args.pruning_type}_{args.plan_type}_{args.target_sparsity}_lr_"
+    if args.exp_name is None:
+        title = ''
     else:
-        title = "vanilla_lr_"
+        title = args.exp_name + '_'
 
-    return title + f"{args.scheduler}_{args.lr}_localep_{args.local_ep}"
+    if args.global_loss_type == 'l2':
+        title += f'fedprox_{args.global_alpha}_'
+
+    if args.pruning and args.base_sparsity != args.target_sparsity:
+        title += f"{args.pruning_type}_{args.plan_type}_bs_{args.base_sparsity}_ts_{args.target_sparsity}"
+    else:
+        title += f"vanilla_bs_{args.base_sparsity}_ts_{args.target_sparsity}"
+
+    return title + f"_iid_{args.iid}_lr_{args.scheduler}_{args.lr}_localep_{args.local_ep}"
 
 
 def str2bool(v):

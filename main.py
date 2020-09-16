@@ -29,6 +29,8 @@ def single_experiment(args, i, logger):
     np.random.seed(int(args.seed + i))  # for the reproducibility
     random.seed(int(args.seed + i))
     torch.manual_seed(int(args.seed + i))
+    torch.cuda.manual_seed(int(args.seed + i))
+    torch.cuda.manual_seed_all(int(args.seed + i))  # if use multi-GPU
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     args.seed += 1

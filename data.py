@@ -32,8 +32,8 @@ class Preprocessor:
         elif self.args.dataset == 'fmnist':
             train_transform, test_transform = self.fashion_mnist_data_augmentation()
             Path(path).mkdir(parents=True, exist_ok=True)
-            dataset_train = datasets.FashionMNIST(path, train=True, download=True)
-            dataset_test = datasets.FashionMNIST(path, train=False, download=True)
+            dataset_train = datasets.FashionMNIST(path, train=True, transform=train_transform, download=True)
+            dataset_test = datasets.FashionMNIST(path, train=False, transform=test_transform, download=True)
             
         elif self.args.dataset == 'cifar10':
             train_transform, test_transform = self.cifar_data_augmentation()

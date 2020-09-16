@@ -112,17 +112,17 @@ class Local:
             params.requires_grad = False
         
     def loss_to_round_global(self):
-        loss = 0
-
-        for i, (param1, param2) in enumerate(zip(self.model.parameters(), self.round_global.parameters())):
-            if self.args.global_loss_type == 'smooth_l1':
+        vec = []
+        if self.args.global_loss_type == 'l2':
+            for i, (param1, param2) in enumerate(zip(self.model.parameters(), self.round_global.parameters())):
                 if self.args.no_reg_to_recover:
-                    global_mask = (param2 != 0).int()
-                    loss += F.smooth_l1_loss(param1*global_mask, param2*global_mask, reduction='sum')
+                    raise NotImplemented
                 else:
-                    loss += F.smooth_l1_loss(param1, param2, reduction='sum')
-                
-            elif self.args.global_loss_type == 'cosine_similarity':
-                loss += -F.cosine_similarity(param1.view(-1), param2.view(-1), dim=0)
+                    vec.append((param1-param2).view(-1, 1))
+
+            all_vec = torch.cat(vec)
+            loss = torch.norm(all_vec)  # (all_vec** 2).sum().sqrt()
+        else:
+            raise NotImplemented
         
-        return loss
+        return loss * 0.5

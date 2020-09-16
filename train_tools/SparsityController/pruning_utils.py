@@ -66,6 +66,9 @@ def _decay_rate(r, pruning_r, decay_type):
         
     elif decay_type == 'reverse_gradual':
         ratio = (1- r/pruning_r)**(1/3)
+    else:
+        raise RuntimeError
+
     return ratio
 
 

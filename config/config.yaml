@@ -10,7 +10,7 @@ aggregation_alg: 'fedavg' # aggregtion algorithm
 # pruning arguments
 pruning: False
 pruning_type: 'server_pruning'
-plan: [0, 280, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
+plan: [20, 260, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
 target_sparsity: 0.9
 base_sparsity: 0.0
 plan_type: 'reverse'
@@ -22,8 +22,8 @@ local_topk: 0.0
 signal_as_mask: False
 
 # global regularizer arguments
-global_alpha: 0.0
-global_loss_type: 'smooth_l1'
+global_alpha: 0.1
+global_loss_type: 'l2'
 no_reg_to_recover: False
 
 # model arguments
@@ -47,6 +47,6 @@ gpu: True  # True, False
 cuda_type: 0  # 0, 1
 server_location: 'cpu'  # gpu, cpu
 seed: 100
-nb_exp_reps: 1  # 반복실험 횟수
+nb_exp_reps: 3  # 반복실험 횟수
 exp_name:
 
