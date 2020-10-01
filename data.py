@@ -15,7 +15,7 @@ class Preprocessor:
         """ 서버에게 Train, Test 데이터 전달함 """
 
         dataset_train, dataset_test = self.download_dataset()
-        dataset_server, dataset_locals = self.make_data_for_local_and_server(dataset_train)
+        dataset_server, dataset_locals = self.make_data_for_local_and_server(dataset_train, self.args.data_hetero_alg)
         server.get_data(dataset_server, dataset_locals, dataset_test)
 
     def download_dataset(self):
@@ -46,11 +46,16 @@ class Preprocessor:
 
         return dataset_train, dataset_test
 
-    def make_data_for_local_and_server(self, dataset_train):
+    def make_data_for_local_and_server(self, dataset_train, hetero_alg):
         """서버와 데이터에게 얼마나 데이터 분배할지 결정. Train 데이터만 사용한다"""
 
         # non iid 데이터를 만들어준다
-        server_idx, locals_idx = self.make_non_iid(dataset_train.targets)
+        if 'fedavg' == hetero_alg:
+            server_idx, locals_idx = self.make_non_iid(dataset_train.targets)
+        elif 'fedma' == hetero_alg:
+            raise NotImplementedError  # Todo
+        else:
+            raise RuntimeError
 
         # 서버의 데이터
         dataset_server = Subset(dataset_train, server_idx)

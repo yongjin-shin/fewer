@@ -41,10 +41,10 @@ class SparsityHandler():
         if merge:
             mask_merger(model)
 
-        avg = 0
-        for k in keeped_mask.keys():
-            avg += torch.sum(keeped_mask[k]).item() / torch.numel(keeped_mask[k])
-        print(f"{avg / len(keeped_mask):.3f}")
+        # avg = 0
+        # for k in keeped_mask.keys():
+        #     avg += torch.sum(keeped_mask[k]).item() / torch.numel(keeped_mask[k])
+        # print(f"{avg / len(keeped_mask):.3f}")
 
         return model, keeped_mask
     

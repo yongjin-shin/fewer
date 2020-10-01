@@ -112,6 +112,7 @@ def read_argv():
     parser.add_argument('--server_location', type=str)
     parser.add_argument('--dataset', type=str)
     parser.add_argument('--iid', type=str)
+    parser.add_argument('--data_hetero_alg', type=str)
     parser.add_argument('--exp_name', type=str, default=None)
     additional_args = parser.parse_args()
 
@@ -158,7 +159,10 @@ def read_argv():
     args.global_loss_type = additional_args.global_loss_type if additional_args.global_loss_type is not None else args.global_loss_type
     args.global_alpha = additional_args.global_alpha if additional_args.global_alpha is not None else args.global_alpha
     args.no_reg_to_recover = str2bool(additional_args.no_reg_to_recover) if additional_args.no_reg_to_recover is not None else args.no_reg_to_recover
+
+    # dataset type
     args.iid = str2bool(additional_args.iid) if additional_args.iid is not None else args.iid
+    args.data_hetero_alg = additional_args.data_hetero_alg if additional_args.data_hetero_alg is not None else args.data_hetero_alg
 
     args.exp_name = additional_args.exp_name if additional_args.exp_name is not None else make_exp_name(args)
     args.model = args.model.lower()
