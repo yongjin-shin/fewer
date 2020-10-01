@@ -113,7 +113,7 @@ class Preprocessor:
                         del tot_idx_by_label[chosen_label][l_idx]  # 뽑힌 shard의 원본은 제거!
                         lb_by_devices.append(chosen_label)
 
-                idx.append(np.concatenate(idx_by_devices))
+                idx.append(np.random.permutation(np.concatenate(idx_by_devices)))
                 lb.append(np.sort(lb_by_devices))
 
         remained_idx = set(np.arange(len(labels))) - set(np.concatenate(idx))

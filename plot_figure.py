@@ -94,7 +94,7 @@ def line_plot(args, x, y, y_type, label, color):
         plt.fill_between(x['raw'], y['lower'], y['upper'], color=color, alpha=0.2)
 
 
-def plot(args, x, y, data, xlim=None, ylim=None):
+def plot(args, x, y, data):
     fig = plt.figure(figsize=(8, 6))
     colors = cm.Set1
     for idx, d in enumerate(data):
@@ -108,8 +108,8 @@ def plot(args, x, y, data, xlim=None, ylim=None):
     else:
         plt.ylabel(y, fontsize=20)
 
-    plt.xlim(xlim[0], xlim[1]) if xlim is not None else None
-    plt.ylim(ylim[0], ylim[1]) if ylim is not None else None
+    plt.xlim(args.xlim[0], args.xlim[1]) if args.xlim is not None else None
+    plt.ylim(args.ylim[0], args.ylim[1]) if args.ylim is not None else None
     plt.legend(fontsize=18, loc='best')
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     plt.grid()
@@ -238,7 +238,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='plot parser')
     parser.add_argument('--root', default='./log/', type=str)
     parser.add_argument('--xs', default=['round'], nargs='+')
+    parser.add_argument('--xlim', default=[0, 300], nargs='+', type=int)
     parser.add_argument('--ys', default=['loss', 'acc'], nargs='+', type=str)
+    parser.add_argument('--ylim', default=[0, 80], nargs='+', type=int)
     parser.add_argument('--exp_name', default=False, nargs='+')
     parser.add_argument('--legend', nargs='+')
     parser.add_argument('--title', type=str)
@@ -259,5 +261,8 @@ if __name__ == '__main__':
 
     if args.legend is None:
         raise RuntimeError("Please Enter legends")
+
+    if 'cost' in args.xs:
+        args.xlim = None
 
     main(args)

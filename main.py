@@ -26,9 +26,9 @@ def main():
 
 def single_experiment(args, i, logger):
     print(f'\033[91m======================{args.dataset} exp: {i}====================\033[00m')
-    np.random.seed(int(args.seed + i))  # for the reproducibility
-    random.seed(int(args.seed + i))
-    torch.manual_seed(int(args.seed + i))
+    np.random.seed(int(args.seed * (i+1)))  # for the reproducibility
+    random.seed(int(args.seed * (i+1)))
+    torch.manual_seed(int(args.seed * (i+1)))
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     args.seed += 1

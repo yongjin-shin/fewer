@@ -4,31 +4,44 @@ from math import log
 __all__ = ['ConstantLR', 'LinearLR', 'LinearStepLR']
 
 
-class ConstantLR:
-    def __init__(self, init_lr):
+class CustomLR:
+    def __init__(self, init_lr, epoch=None, eta_min=None):
         self.init_lr = init_lr
-        self.crnt_lr = self.init_lr
+        self.crnt_lr = init_lr
+        self.diff = 0
 
-    def get_lr(self):
-        return [self.crnt_lr]
-    
     def get_last_lr(self):
         return [self.crnt_lr]
+
+    def step(self):
+        raise NotImplementedError
+
+    def state_dict(self):
+        return {
+            'init': self.init_lr,
+            'crnt': self.crnt_lr,
+            'diff': self.diff
+        }
+
+    def load_state_dict(self, _dict):
+        self.init_lr = _dict['init']
+        self.crnt_lr = _dict['crnt']
+        self.diff = _dict['diff']
+
+
+class ConstantLR(CustomLR):
+    def __init__(self, init_lr):
+        super().__init__(init_lr)
 
     def step(self):
         pass
 
 
-class LinearLR:
+class LinearLR(CustomLR):
     def __init__(self, init_lr, epoch, eta_min):
-        self.init_lr = init_lr
-        self.crnt_lr = init_lr
-
+        super().__init__(init_lr, epoch, eta_min)
         tot_diff = init_lr - eta_min
         self.diff = tot_diff / (epoch-1)
-
-    def get_last_lr(self):
-        return [self.crnt_lr]
 
     def step(self):
         self.crnt_lr -= self.diff

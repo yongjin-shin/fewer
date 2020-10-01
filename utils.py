@@ -4,6 +4,7 @@ from argparse import Namespace
 from pathlib import Path
 from collections import namedtuple
 from train_tools.utils import *
+from termcolor import colored
 
 __all__ = ['Results', 'Logger', 'read_argv', 'make_exp_name']
 
@@ -39,6 +40,34 @@ class Logger:
     def save_model(self, param, exp_id):
         Path(f"{self.path}/{exp_id}").mkdir(parents=True, exist_ok=True)
         torch.save(param, f"{self.path}/{exp_id}/model.h5")
+
+    def save_checkpoints(self, fed_round, model, mask, opt, lr_scheduler):
+        checkpoints = {
+            'round': fed_round,
+            'model_state_dict': model,
+            'mask': mask,
+            'optimizer_state_dict': opt,
+            'lr_scheduler': lr_scheduler
+        }
+        torch.save(checkpoints, f"{self.path}/checkpoints.pth")
+
+        print(colored(f"Save checkpoints@ {self.path}/checkpoints.pth", 'red'))
+
+    def has_checkpoints(self):
+        return Path(f"{self.path}/checkpoints.pth").exists()
+
+    def load_checkpoints(self, server):
+        checkpoints = torch.load(f"{self.path}/checkpoints.pth")
+        server.model.load_state_dict(checkpoints['model_state_dict'])
+        server.server_optim.load_state_dict(checkpoints['optimizer_state_dict'])
+        # server.server_lr_scheduler.load_state_dict(checkpoints['lr_scheduler'])
+        print(colored("Load checkpoints", 'red'))
+        return checkpoints['mask'], checkpoints['round']
+
+    def del_checkpoints(self):
+        if Path(f"{self.path}/checkpoints.pth").exists():
+            Path(f"{self.path}/checkpoints.pth").unlink()
+            print(colored("DELETE checkpoints", 'red'))
 
     def get_results(self, results):
         self.print_data(results)
@@ -126,7 +155,10 @@ def read_argv():
     parser.add_argument('--clip_dir', type=str)
     parser.add_argument('--ratio_clients_per_round', type=float)
     parser.add_argument('--exp_name', type=str, default=None)
-    parser.add_argument('--freezing_interval', type=int)
+    parser.add_argument('--del_checkpoints', type=str)
+    parser.add_argument('--track_var', type=str)
+    parser.add_argument('--check_point', type=int)
+
     additional_args = parser.parse_args()
 
     yaml_file = additional_args.config_file
@@ -178,10 +210,17 @@ def read_argv():
     args.clip_type = additional_args.clip_type if additional_args.clip_type is not None else args.clip_type
     args.clip_dir = additional_args.clip_dir if additional_args.clip_dir is not None else args.clip_dir
     args.ratio_clients_per_round = additional_args.ratio_clients_per_round if additional_args.ratio_clients_per_round is not None else args.ratio_clients_per_round
-    args.freezing_interval = additional_args.freezing_interval if additional_args.freezing_interval is not None else args.freezing_interval
 
-    if args.exp_name is None:
-        args.exp_name = additional_args.exp_name if additional_args.exp_name is not None else make_exp_name(args)
+    # freezing setting
+    args.del_checkpoints = str2bool(additional_args.del_checkpoints) if additional_args.del_checkpoints is not None else args.del_checkpoints
+    args.check_point = additional_args.check_point if additional_args.check_point is not None else args.check_point
+    args.track_var = str2bool(additional_args.track_var) if additional_args.track_var is not None else args.track_var
+
+    if additional_args.exp_name is None:
+        if args.exp_name is None:
+            args.exp_name = make_exp_name(args)
+    else:
+        args.exp_name = additional_args.exp_name
 
     args.model = args.model.lower()
     args.dataset = args.dataset.lower()

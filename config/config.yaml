@@ -1,21 +1,21 @@
 # federated arguments
-nb_rounds: 300 # communication rounds
+nb_rounds: 12 # communication rounds
 nb_devices: 100  # 로컬 클라이언트 수
-nb_server_data: 0  # 서버가 지니고 있는 데이터 개수
-local_ep: 3  # 로컬 모델 update 횟수
+nb_server_data: 0.01  # 서버가 지니고 있는 데이터 개수
+local_ep: 5  # 로컬 모델 update 횟수
 local_bs: 50  # 로컬 Training Batch Size
 ratio_clients_per_round: 0.1  # 한 라운드에 몇 명에게 보낼까?
 aggregation_alg: 'fedavg' # aggregtion algorithm
 
 # pruning arguments
-pruning: False
+pruning: True
 pruning_type: 'server_pruning'
-plan: [0, 280, 0, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
+plan: [0, 5, 2, 5] # [warming_rounds, pruning_rounds, tuning_rounds]
 target_sparsity: 0.9
-recovery_sparsity: 0
+recovery_sparsity: 0.8
 base_sparsity: 0
 plan_type: 'base'
-decay_type: 'gradual'
+decay_type: 'linear'
 
 # recovering arguments
 use_recovery_signal: False
@@ -29,18 +29,18 @@ global_loss_type: 'smooth_l1'
 no_reg_to_recover: False
 
 # model arguments
-model: 'cifarcnn' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res
+model: 'mnistcnn' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res
 hidden: 256
 loss_func: 'CrossEntropy'
 lr: 0.03
 optimizer: 'sgd'  # 'sgd'
 momentum: 0.9
-weight_decay: 0.0005
+weight_decay: 0
 scheduler: 'cosine'  # cosine | linear | constant | step
 
 
 # dataset arguments
-dataset: 'cifar10' # mnist, fmnist, cifar10, cifar100
+dataset: 'mnist' # mnist, fmnist, cifar10, cifar100
 iid: False  # True, False
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
@@ -49,8 +49,13 @@ gpu: True  # True, False
 cuda_type: 0  # 0, 1
 server_location: 'cpu'  # gpu, cpu
 seed: 100
-nb_exp_reps: 3  # 반복실험 횟수
-exp_name:
+nb_exp_reps: 1  # 반복실험 횟수
+exp_name: 'debugging'
+
+del_checkpoints: False
+check_point: 5
+track_var: True
+freezing: False
 
 # bias & variance test
 clip_type: 'None'  # std, half

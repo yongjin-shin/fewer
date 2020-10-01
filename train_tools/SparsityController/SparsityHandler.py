@@ -51,6 +51,19 @@ class SparsityHandler():
     
         return signal_mask
 
+    def get_masked_grad(self, local, mask):
+        ret = {}
+        for name, module in local.model.named_modules():
+            key = f"{name}.weight_mask"
+            if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+                module_mask = mask[key]
+                grad = module.weight.grad.data
+                masked_grad = grad * module_mask
+                ret[f"{name}_weight"] = masked_grad.clone()
+                ret[f"{name}_bias"] = module.bias.grad.data.clone()
+
+        return ret
+
     def get_server_signal(self, server, keeped_mask, topk=0.05, as_mask=True, method='stack_grad'):
         if method == 'stack_grad':
             server.stack_grad()

@@ -19,11 +19,35 @@ class Local:
         self.valid_loader = None
         self.valid_dataset = None
 
+        # freezing
+        self.freezing_mask = None
+
         # model & optimizer
         self.model = create_nets(self.args, 'LOCAL').to(self.args.server_location)
         self.optim, self.lr_scheduler = None, None
         self.criterion = nn.CrossEntropyLoss()
         self.epochs = self.args.local_ep
+
+    def freeze_hooker(self):
+        def hook_fn(grad, mask):
+            print(f"Grad shape: {grad.size()}"
+                  f" Freezing: {mask})")
+            return grad * mask
+
+        for name, param in self.model.named_parameters():
+            # if the param is from a linear and is a bias
+            _key = f"{name.split('_')[0]}_mask"
+            if "orig" in name and _key in self.freezing_mask.keys():
+                param.register_hook(lambda grad:
+                                    hook_fn(grad,
+                                            (1 - self.freezing_mask[_key])))
+
+    def freezing_grad(self):
+        for name, param in self.model.named_parameters():
+            # if the param is from a linear and is a bias
+            _key = f"{name.split('_')[0]}_mask"
+            if "orig" in name and _key in self.freezing_mask.keys():
+                param.grad = param.grad * (1 - self.freezing_mask[_key])
 
     def train(self):
         if self.args.global_loss_type != 'none':
@@ -32,11 +56,16 @@ class Local:
         train_loss, train_acc, itr, ep = 0, 0, 0, 0
         self.model.to(self.args.device)
 
+        # if self.freezing_mask is not None:
+        #     self.freeze_hooker()
+
         for ep in range(self.epochs):        
             for itr, (data, target) in enumerate(self.data_loader):
                 # forward pass
                 data = data.to(self.args.device)
                 target = target.to(self.args.device)
+                # if ep == 0 and itr == 0:
+                #     print(target)
                 output = self.model(data)
                 loss = self.criterion(output, target)
                 
@@ -45,8 +74,9 @@ class Local:
                 
                 # backward pass
                 self.optim.zero_grad()
-                # self.apply_partial_gradient(itr)
                 loss.backward()
+                if self.freezing_mask is not None and self.args.freezing:
+                    self.freezing_grad()
                 self.optim.step()
 
                 train_loss += loss.detach().item()
@@ -78,34 +108,42 @@ class Local:
         #     valid_acc = round(valid_correct/data_num, 4)
         #     # print(f"Valid: {torch.unique(torch.tensor(t))}")
 
-        local_acc, valid_acc = None, None
+        local_acc, valid_acc = -1, -1
         self.model.to(self.args.server_location)
         local_loss = train_loss / ((self.args.local_ep) * (itr+1))
         
         return local_loss, local_acc, valid_acc
 
-    def stack_grad(self):
+    def stack_grad(self, given_data=None):
         """stack gradient to local parameters"""
         self.model.to(self.args.device)
         self.optim.zero_grad()
-            
-        for data, target in self.data_loader:
+
+        if given_data is None:
+            data_loader = self.data_loader
+        else:
+            data_loader = DataLoader(given_data, batch_size=len(given_data), shuffle=False)
+
+        for data, target in data_loader:
             data = data.to(self.args.device)
             target = target.to(self.args.device)
+            # print(f"Grad: {target}")
             output = self.model(data)
             loss = self.criterion(output, target)
             loss.backward()
-            
+
         self.model.to(self.args.server_location)
 
-    def get_dataset(self, client_dataset, valid_idx):
+    def get_dataset(self, client_dataset):
         if client_dataset.__len__() <= 0:
             raise RuntimeError
         else:
             # self.plotter(client_dataset)
             # self.plotter(Subset(self.valid_dataset, valid_idx))
-            self.data_loader = DataLoader(client_dataset, batch_size=self.args.local_bs, shuffle=True)
-            self.valid_loader = DataLoader(Subset(self.valid_dataset, valid_idx), shuffle=True)
+            # self.args.seed += 1
+            # torch.manual_seed(int(self.args.seed))
+            self.data_loader = DataLoader(client_dataset, batch_size=self.args.local_bs, shuffle=False)
+            # self.valid_loader = DataLoader(Subset(self.valid_dataset, valid_idx), shuffle=True)
 
     def plotter(self, dataset):
         loader = DataLoader(dataset, batch_size=1)
@@ -140,14 +178,19 @@ class Local:
                                      lr=server_lr,
                                      momentum=self.args.momentum,
                                      weight_decay=self.args.weight_decay)
-        
+
+    def get_freezing_mask(self, freezing_mask):
+        self.freezing_mask = freezing_mask
+
     def upload_model(self):
         return copy.deepcopy(self.model.state_dict())
     
     def reset(self):
+        self.optim.zero_grad()
         self.data_loader = None
         self.optim = None
         self.lr_scheduler = None
+        self.freezing_mask = None
         self.round_global = None
 
     def keep_global(self):

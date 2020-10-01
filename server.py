@@ -3,6 +3,8 @@ import copy, gc, time
 import torch
 from torch.utils.data import DataLoader, Subset
 from torch.optim.lr_scheduler import CosineAnnealingLR
+from pathlib import Path
+from termcolor import colored
 
 # import related custom packages
 from local import *
@@ -32,6 +34,7 @@ class Server:
         self.valid_loader = None
         self.locals_info = None
         self.valid_info = None
+        self.freezing_mask = None
 
         # about optimization
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -92,16 +95,41 @@ class Server:
         else:
             raise NotImplementedError
 
+    def aggregation_models(self, updated_locals):
+        self.model.load_state_dict(copy.deepcopy(self.aggregate_model_func(updated_locals)))
+
     def train(self, exp_id=None):
-        
         # initialize global mask & recovery signals as None
         global_mask, recovery_signals = None, []
         self.locals.get_validset(self.dataset_server)
+        model_variance = -1
 
         for fed_round in range(self.args.nb_rounds):
             start_time = time.time()
             print('==================================================')
             print(f'Epoch [{exp_id}: {fed_round+1}/{self.args.nb_rounds}]', end='')
+
+            if fed_round == 0:
+                if self.args.del_checkpoints and exp_id == 0:
+                    self.logger.del_checkpoints()
+                pass
+            elif 0 < fed_round < self.args.check_point:
+                if self.logger.has_checkpoints():
+                    self.sampling_clients(self.nb_client_per_round)
+                    self.server_lr_scheduler.step()
+                    continue
+            elif fed_round == self.args.check_point:
+                if self.logger.has_checkpoints():
+                    global_mask, checkpoints_round = self.logger.load_checkpoints(self)
+                    self.freezing_mask = copy.deepcopy(global_mask)
+                    assert fed_round == checkpoints_round
+                else:
+                    self.logger.save_checkpoints(fed_round,
+                                                 model=self.model.state_dict(),
+                                                 mask=global_mask,
+                                                 opt=self.server_optim.state_dict(),
+                                                 lr_scheduler=self.server_lr_scheduler.state_dict())
+                    self.freezing_mask = copy.deepcopy(global_mask)
 
             # global pruning step
             if self.args.pruning_type == 'server_pruning':
@@ -110,6 +138,9 @@ class Server:
                                                                                  recovery_signals,
                                                                                  global_mask,
                                                                                  merge=True)
+
+            if self.args.track_var:
+                model_variance = self.get_variance(keeped_masks=global_mask)
 
             # distribution step
             current_sparsity = sparsity_evaluator(self.model)
@@ -124,13 +155,6 @@ class Server:
             train_loss, updated_locals, recovery_signals, local_print = self.clients_training(clients_dataset=clients_dataset,
                                                                                               keeped_masks=global_mask,
                                                                                               use_recovery_signal=self.args.use_recovery_signal)
-
-            # if fed_round % 10 == 0:
-            #     self.logger.plot_heatmap(get_models_covariance(updated_locals, self.args.device, fed_round), fed_round)
-            # new_train_loss, else_train_loss, updated_locals = local_clippers(self.args, train_loss, updated_locals)
-            # print(f"Clipped {new_train_loss} vs {else_train_loss}\n")
-            model_variance = 0  #get_models_variance(self.model.state_dict(), updated_locals, self.args.device)
-
             # aggregation step
             self.aggregation_models(updated_locals)
             gc.collect()
@@ -144,7 +168,7 @@ class Server:
             
             # test & log results
             test_loss, test_acc = self.test()
-            valid_acc = self.valid(clients_dataset)
+            valid_acc = local_print[3]
             self.local_printer(local_print, valid_acc)
 
             end_time = time.time()
@@ -155,8 +179,36 @@ class Server:
                                             self.server_lr_scheduler.get_last_lr()[0],
                                             model_variance))
             self.server_lr_scheduler.step()
-
         return self.container, self.model
+
+    def get_local_grad(self, keeped_masks):
+        local_grads = []
+        for local_data in self.dataset_locals:
+            self.locals.get_model(server_model=self.model.state_dict())
+            self.locals.get_lr(server_lr=self.server_lr_scheduler.get_last_lr()[0])
+            if keeped_masks is not None:
+                self.locals.stack_grad(local_data)
+                local_grads.append(self.sparsity_handler.get_masked_grad(self.locals, keeped_masks))
+                self.locals.reset()
+            else:
+                raise RuntimeError
+        return local_grads
+
+    @torch.no_grad()
+    def calc_variance(self, _local, _global):
+        diff = 0
+        for i in range(len(_local)):
+            client_diff = 0
+            for k in _global.keys():
+                client_diff += torch.sum(torch.square(_local[i][k] - _global[k]))
+            diff += client_diff
+        return diff.item()/len(_local)
+
+    def get_variance(self, keeped_masks):
+        local_grads = self.get_local_grad(keeped_masks)
+        global_grads = self.aggregate_model_func(local_grads)
+        ret = self.calc_variance(local_grads, global_grads)
+        return ret
 
     def clients_training(self, clients_dataset, keeped_masks=None, use_recovery_signal=False):
         updated_locals, local_sparsity, recovery_signals, train_acc, valid_acc = [], [], [], [], []
@@ -166,10 +218,11 @@ class Server:
         for _cnt, (dataset, local_info) in enumerate(clients_dataset):
             labels.append(local_info)
             # print(f"Want: {local_info}", end='')
-            self.locals.get_dataset(client_dataset=dataset,
-                                    valid_idx=np.concatenate([self.valid_info[lb] for lb in local_info]))
+            self.locals.get_dataset(client_dataset=dataset)
             self.locals.get_model(server_model=self.model.state_dict())
             self.locals.get_lr(server_lr=self.server_lr_scheduler.get_last_lr()[0])
+            if self.freezing_mask is not None:
+                self.locals.get_freezing_mask(self.freezing_mask)
 
             if keeped_masks is not None:    
                 # get and apply pruned mask from global
@@ -206,15 +259,8 @@ class Server:
 
         labels = np.vstack(labels)
         local_results = np.vstack((labels[:, 0], labels[:, 1], train_acc, valid_acc))
-        # print(f'Local Label   1 : {labels[:, 0]}')
-        # print(f'Local Label   2 : {labels[:, 1]}')
-        # print(f'Local Train Acc : {train_acc}')
-        # print(f'Local Valid Acc : {valid_acc}')
 
         return train_loss, updated_locals, recovery_signals, local_results
-
-    def aggregation_models(self, updated_locals):
-        self.model.load_state_dict(copy.deepcopy(self.aggregate_model_func(updated_locals)))
 
     def valid(self, clients_dataset):
         self.model.to(self.args.device).eval()
@@ -260,9 +306,9 @@ class Server:
 
         _f = f'Local Label 1    : {array_printer("int", 0)}\n' \
              f'Local Label 2    : {array_printer("int", 1)}\n' \
-             f'Local Train Acc  : {array_printer("float", 2)}\n' \
-             f'Local Valid Acc  : {array_printer("float", 3)}\n' \
-             f'Global Valid Acc : {array_printer("float", 4)}\n'
+             # f'Local Train Acc  : {array_printer("float", 2)}\n' \
+             # f'Local Valid Acc  : {array_printer("float", 3)}\n' \
+             # f'Global Valid Acc : {array_printer("float", 4)}\n'
         print(_f)
 
     def test(self):
