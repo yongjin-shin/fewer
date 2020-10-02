@@ -63,8 +63,7 @@ class Local:
         local_loss = train_loss / ((self.args.local_ep) * (itr+1))
         
         return local_loss, local_acc
-    
-    
+
     def stack_grad(self):
         """stack gradient to local parameters"""
         self.model.to(self.args.device)
@@ -78,7 +77,6 @@ class Local:
             loss.backward()
             
         self.model.to(self.args.server_location)
-        
 
     def get_dataset(self, client_dataset):
         if client_dataset.__len__() <= 0:
