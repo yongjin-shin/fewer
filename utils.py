@@ -91,6 +91,11 @@ def read_argv():
     parser.add_argument('--nb_rounds', type=int)
     parser.add_argument('--lr', type=float)
     parser.add_argument('--model', type=str)
+    parser.add_argument('--mode', type=str)
+    parser.add_argument('--smoothing', type=float)
+    parser.add_argument('--temp', type=float)
+    parser.add_argument('--beta', type=float)
+    parser.add_argument('--num_classes', type=int)
     parser.add_argument('--pruning', type=str)
     parser.add_argument('--pruning_type', type=str)
     parser.add_argument('--plan_type', type=str)
@@ -141,6 +146,13 @@ def read_argv():
     args.lr = additional_args.lr if additional_args.lr is not None else args.lr
     args.scheduler = additional_args.scheduler if additional_args.scheduler is not None else args.scheduler
     args.weight_decay = additional_args.weight_decay if additional_args.weight_decay is not None else args.weight_decay
+    
+    # distill settings
+    args.mode = additional_args.mode if additional_args.mode is not None else args.mode
+    args.smoothing = additional_args.smoothing if additional_args.smoothing is not None else args.smoothing
+    args.temp = additional_args.temp if additional_args.temp is not None else args.temp
+    args.beta = additional_args.beta if additional_args.beta is not None else args.beta
+    args.num_classes = additional_args.num_classes if additional_args.num_classes is not None else args.num_classes
     
     # pruning settings
     args.pruning = str2bool(additional_args.pruning if additional_args.pruning is not None else args.pruning)

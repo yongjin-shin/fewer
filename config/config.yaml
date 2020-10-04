@@ -7,6 +7,13 @@ local_bs: 50  # 로컬 Training Batch Size
 ratio_clients_per_round: 0.1  # 한 라운드에 몇 명에게 보낼까?
 aggregation_alg: 'fedavg' # aggregtion algorithm
 
+# Distill arguments
+mode: 'LS' # CE corresponds to baseline (cross-entropy loss)
+smoothing: 0.3
+temp: 0.5
+beta: 1
+num_classes: 10
+
 # pruning arguments
 pruning: False
 pruning_type: 'server_pruning'
@@ -22,7 +29,7 @@ local_topk: 0.0
 signal_as_mask: False
 
 # global regularizer arguments
-global_alpha: 0.1
+global_alpha: 0.0
 global_loss_type: 'l2'
 no_reg_to_recover: False
 
@@ -30,11 +37,11 @@ no_reg_to_recover: False
 model: 'cifarcnn' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res
 hidden: 256
 loss_func: 'CrossEntropy'
-lr: 0.03
+lr: 0.01
 optimizer: 'sgd'  # 'sgd'
 momentum: 0.9
 weight_decay: 0.0000
-scheduler: 'cosine'  # cosine | linear | constant | step
+scheduler: 'constant'  # cosine | linear | constant | step
 
 
 # dataset arguments
@@ -49,5 +56,5 @@ cuda_type: 0  # 0, 1
 server_location: 'cpu'  # gpu, cpu
 seed: 100
 nb_exp_reps: 3  # 반복실험 횟수
-exp_name:
+exp_name: 'test'
 
