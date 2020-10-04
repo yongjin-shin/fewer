@@ -8,7 +8,7 @@ ratio_clients_per_round: 0.1  # 한 라운드에 몇 명에게 보낼까?
 aggregation_alg: 'fedavg' # aggregtion algorithm
 
 # Distill arguments
-mode: 'LS' # CE corresponds to baseline (cross-entropy loss)
+mode: 'CE' # CE corresponds to baseline (cross-entropy loss)
 smoothing: 0.3
 temp: 0.5
 beta: 1
@@ -37,17 +37,17 @@ no_reg_to_recover: False
 model: 'cifarcnn' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res
 hidden: 256
 loss_func: 'CrossEntropy'
-lr: 0.01
+lr: 0.03
 optimizer: 'sgd'  # 'sgd'
 momentum: 0.9
 weight_decay: 0.0000
-scheduler: 'constant'  # cosine | linear | constant | step
+scheduler: 'linear'  # cosine | linear | constant | step
 
 
 # dataset arguments
 dataset: 'cifar10' # mnist, fmnist, cifar10
 iid: False  # True, False
-data_hetero_alg: fedavg  # fedavg, fedma
+data_hetero_alg: fedavg  # fedma
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
 # misc
@@ -55,6 +55,6 @@ gpu: True  # True, False
 cuda_type: 0  # 0, 1
 server_location: 'cpu'  # gpu, cpu
 seed: 100
-nb_exp_reps: 3  # 반복실험 횟수
+nb_exp_reps: 1  # 반복실험 횟수
 exp_name: 'test'
 

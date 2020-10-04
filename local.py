@@ -26,8 +26,8 @@ class Local:
             
         if (self.args.mode == 'KD') or (self.args.mode =='FedLSD'):
             self.keep_global()
-            t_logits = None
-
+        
+        t_logits = None
         train_loss, train_acc, itr, ep = 0, 0, 0, 0
         self.model.to(self.args.device)
 
