@@ -113,9 +113,8 @@ class Server:
             clients_dataset = [self.dataset_locals[i] for i in sampled_devices]
 
             # local pruning step (client training & upload models)
-            train_loss, updated_locals, recovery_signals = self.clients_training(clients_dataset=clients_dataset,
-                                                               keeped_masks=global_mask,
-                                                               use_recovery_signal=self.args.use_recovery_signal)
+            train_loss, updated_locals, len_datasets, recovery_signals = self.clients_training(
+                clients_dataset=clients_dataset, keeped_masks=global_mask, use_recovery_signal=self.args.use_recovery_signal)
             
             # model_variance = get_models_variance(self.model.state_dict(), updated_locals, self.args.device)
             model_variance = 0
@@ -123,7 +122,7 @@ class Server:
             self.server_lr_scheduler.step()
 
             # aggregation step
-            self.aggregation_models(updated_locals)
+            self.aggregation_models(updated_locals, len_datasets)
             gc.collect()
             torch.cuda.empty_cache()
             
@@ -143,6 +142,7 @@ class Server:
     
         updated_locals, local_sparsity, recovery_signals, train_acc = [], [], [], []
         train_loss, _cnt = 0, 0
+        len_datasets = []
 
         for _cnt, dataset in enumerate(clients_dataset):
             self.locals.get_dataset(client_dataset=dataset)
@@ -168,6 +168,7 @@ class Server:
             """ Uploading """
             self.tot_comm_cost += self.init_cost * (1 - local_sparsity[-1])
             updated_locals.append(self.locals.upload_model())
+            len_datasets.append(dataset.__len__())
             
             """ Recovery Signal """
             if self.args.use_recovery_signal:
@@ -184,10 +185,10 @@ class Server:
         train_loss /= (_cnt+1)
         print(f'Local Train Acc : {train_acc}\n')
 
-        return train_loss, updated_locals, recovery_signals
+        return train_loss, updated_locals, len_datasets, recovery_signals
 
-    def aggregation_models(self, updated_locals):
-        self.model.load_state_dict(copy.deepcopy(self.aggregate_model_func(updated_locals)))
+    def aggregation_models(self, updated_locals, len_datasets):
+        self.model.load_state_dict(copy.deepcopy(self.aggregate_model_func(updated_locals, len_datasets)))
 
     def test(self):
         self.model.to(self.args.device).eval()

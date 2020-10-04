@@ -3,6 +3,7 @@ from torchvision import datasets, transforms
 from torch.utils.data import Subset
 from collections import deque
 import numpy as np
+from collections import defaultdict
 
 __all__ = ['Preprocessor']
 
@@ -50,12 +51,7 @@ class Preprocessor:
         """서버와 데이터에게 얼마나 데이터 분배할지 결정. Train 데이터만 사용한다"""
 
         # non iid 데이터를 만들어준다
-        if 'fedavg' == hetero_alg:
-            server_idx, locals_idx = self.make_non_iid(dataset_train.targets)
-        elif 'fedma' == hetero_alg:
-            raise NotImplementedError  # Todo
-        else:
-            raise RuntimeError
+        server_idx, locals_idx = self.make_non_iid(dataset_train.targets, hetero_alg)
 
         # 서버의 데이터
         dataset_server = Subset(dataset_train, server_idx)
@@ -73,7 +69,7 @@ class Preprocessor:
         
         return dataset_server, datasets_local
 
-    def make_non_iid(self, labels):
+    def make_non_iid(self, labels, alg):
         length = int((len(labels) - self.args.nb_server_data) / self.args.nb_devices)
         idx = []
         
@@ -103,16 +99,49 @@ class Preprocessor:
                         break
                 tot_idx_by_label.append(tmp)
 
-            # 각 client 별로 randomly 각기 다른 class를 뽑음
-            for _ in range(self.args.nb_devices):
-                idx_by_devices = []
-                while len(idx_by_devices) < self.args.nb_max_classes:
-                    chosen_label = np.random.choice(unique_classes, 1, replace=False)[0]  # 임의의 Label을 하나 뽑음
-                    if len(tot_idx_by_label[chosen_label]) > 0:  # 만약 해당 Label의 shard가 하나라도 남아있다면,
-                        l_idx = np.random.choice(len(tot_idx_by_label[chosen_label]), 1, replace=False)[0]  # shard 중 일부를 하나 뽑고
-                        idx_by_devices.append(tot_idx_by_label[chosen_label][l_idx].tolist())  # 클라이언트에 넣어준다.
-                        del tot_idx_by_label[chosen_label][l_idx]  # 뽑힌 shard의 원본은 제거!
-                idx.append(np.concatenate(idx_by_devices))
+            if 'fedavg' == alg:
+                # 각 client 별로 randomly 각기 다른 class를 뽑음
+                for _ in range(self.args.nb_devices):
+                    idx_by_devices = []
+                    while len(idx_by_devices) < self.args.nb_max_classes:
+                        chosen_label = np.random.choice(unique_classes, 1, replace=False)[0]  # 임의의 Label을 하나 뽑음
+                        if len(tot_idx_by_label[chosen_label]) > 0:  # 만약 해당 Label의 shard가 하나라도 남아있다면,
+                            l_idx = np.random.choice(len(tot_idx_by_label[chosen_label]), 1, replace=False)[0]  # shard 중 일부를 하나 뽑고
+                            idx_by_devices.append(tot_idx_by_label[chosen_label][l_idx].tolist())  # 클라이언트에 넣어준다.
+                            del tot_idx_by_label[chosen_label][l_idx]  # 뽑힌 shard의 원본은 제거!
+                    idx.append(np.concatenate(idx_by_devices))
+
+            elif 'fedma' == alg:
+                idx_batch = [[] for _ in range(self.args.nb_devices)]
+                idx = [defaultdict(list) for _ in range(self.args.nb_devices)]
+                for it, k in enumerate(unique_classes):
+                    this_labels = np.concatenate(tot_idx_by_label[it])
+                    prop = np.random.dirichlet([0.5 for _ in range(self.args.nb_devices)])
+                    prop = np.array([p * (len(idx_j) < length)
+                                     for p, idx_j in zip(prop, idx_batch)])
+                    prop = prop / prop.sum()
+                    prop = (prop * len(this_labels)).astype(int).cumsum()[:-1]
+                    label_by_device = np.split(this_labels, prop)
+                    for device_id, lb in enumerate(label_by_device):
+                        idx_batch[device_id] += lb.copy().tolist()
+                        idx[device_id][k] = lb.copy().tolist()
+
+                from termcolor import colored
+                print(colored(f'{"Tot":5s}', 'red'), end='')
+                for i in range(10):
+                    print(f"{i:5d}", end='')
+                print('\n')
+
+                for i in range(self.args.nb_devices):
+                    print(colored(f"{len(idx_batch[i]):5d}", 'red'), end='')
+                    for k in idx[i].keys():
+                        print(f"{len(idx[i][k]):5d}", end='')
+                    print('\n')
+
+                idx = idx_batch
+
+            else:
+                raise RuntimeError
 
         remained_idx = set(np.arange(len(labels))) - set(np.concatenate(idx))
         server_idx = np.random.choice(list(remained_idx), size=self.args.nb_server_data)

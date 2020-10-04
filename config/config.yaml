@@ -47,7 +47,7 @@ scheduler: 'constant'  # cosine | linear | constant | step
 # dataset arguments
 dataset: 'cifar10' # mnist, fmnist, cifar10
 iid: False  # True, False
-data_hetero_alg: fedavg  # fedma
+data_hetero_alg: fedavg  # fedavg, fedma
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
 
 # misc
