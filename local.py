@@ -57,8 +57,7 @@ class Local:
                 self.optim.step()
 
                 train_loss += loss.detach().item()
-        
-        
+
         with torch.no_grad():
             correct, data_num = 0, 0
         
@@ -77,20 +76,6 @@ class Local:
         local_loss = train_loss / ((self.args.local_ep) * (itr+1))
         
         return local_loss, local_acc
-
-    def stack_grad(self):
-        """stack gradient to local parameters"""
-        self.model.to(self.args.device)
-        self.optim.zero_grad()
-            
-        for data, target in self.data_loader:
-            data = data.to(self.args.device)
-            target = target.to(self.args.device)
-            output = self.model(data)
-            loss = self.criterion(output, target)
-            loss.backward()
-            
-        self.model.to(self.args.server_location)
 
     def get_dataset(self, client_dataset):
         if client_dataset.__len__() <= 0:

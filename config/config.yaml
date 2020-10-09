@@ -16,22 +16,8 @@ num_classes: 10
 oracle: False
 oracle_path:
 
-# pruning arguments
-pruning: False
-pruning_type: 'server_pruning'
-plan: [20, 260, 20] # [warming_rounds, pruning_rounds, tuning_rounds]
-target_sparsity: 0.9
-base_sparsity: 0.0
-plan_type: 'reverse'
-decay_type: 'gradual'
-
-# recovering arguments
-use_recovery_signal: False
-local_topk: 0.0
-signal_as_mask: False
-
 # global regularizer arguments
-global_alpha: 0.0
+global_alpha: 0.1
 global_loss_type: 'l2'
 no_reg_to_recover: False
 

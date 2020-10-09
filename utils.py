@@ -24,7 +24,6 @@ class Logger:
 
     def get_args(self, args):
         self.args = args
-        self.tot_sparsity = args.target_sparsity
 
         # Create saving folder
         self.path = f"{self.path}/[{args.model}-{args.dataset}]{args.exp_name}"
@@ -133,7 +132,6 @@ def read_argv():
     args = Namespace(**args)
     # general settings
     args.model = additional_args.model if additional_args.model is not None else args.model
-    args.dataset = additional_args.dataset if additional_args.dataset is not None else args.dataset
     args.device = additional_args.device if additional_args.device is not None else get_device(args)
     args.cuda_type = additional_args.cuda_type if additional_args.cuda_type is not None else args.cuda_type
     
@@ -143,7 +141,12 @@ def read_argv():
     args.local_ep = additional_args.local_ep if additional_args.local_ep is not None else args.local_ep
     args.nb_exp_reps = additional_args.nb_exp_reps if additional_args.nb_exp_reps is not None else args.nb_exp_reps
     args.nb_rounds = additional_args.nb_rounds if additional_args.nb_rounds is not None else args.nb_rounds
-    
+
+    # dataset settings
+    args.dataset = additional_args.dataset if additional_args.dataset is not None else args.dataset
+    args.iid = str2bool(additional_args.iid) if additional_args.iid is not None else args.iid
+    args.data_hetero_alg = additional_args.data_hetero_alg if additional_args.data_hetero_alg is not None else args.data_hetero_alg
+
     # learning settings
     args.lr = additional_args.lr if additional_args.lr is not None else args.lr
     args.scheduler = additional_args.scheduler if additional_args.scheduler is not None else args.scheduler
@@ -156,29 +159,13 @@ def read_argv():
     args.beta = additional_args.beta if additional_args.beta is not None else args.beta
     args.oracle = str2bool(additional_args.oracle if additional_args.oracle is not None else args.oracle)
     args.oracle_path = additional_args.oracle_path if additional_args.oracle_path is not None else args.oracle_path
-    
-    # pruning settings
-    args.pruning = str2bool(additional_args.pruning if additional_args.pruning is not None else args.pruning)
-    args.plan = additional_args.plan if additional_args.plan is not None else args.plan
-    args.pruning_type = additional_args.pruning_type if additional_args.pruning_type is not None else args.pruning_type
-    args.plan_type = additional_args.plan_type if additional_args.plan_type is not None else args.plan_type
-    args.decay_type = additional_args.decay_type if additional_args.decay_type is not None else args.decay_type
-    args.target_sparsity = additional_args.target_sparsity if additional_args.target_sparsity is not None else args.target_sparsity
-    args.base_sparsity = additional_args.base_sparsity if additional_args.base_sparsity is not None else args.base_sparsity
-    args.use_recovery_signal = str2bool(additional_args.use_recovery_signal \
-                                        if additional_args.use_recovery_signal is not None else args.use_recovery_signal)
-    args.signal_as_mask = str2bool(additional_args.signal_as_mask \
-                                   if additional_args.signal_as_mask is not None else args.signal_as_mask)
-    args.local_topk = additional_args.local_topk if additional_args.local_topk is not None else args.local_topk
-    
+
+    # FedProx settings
     args.global_loss_type = additional_args.global_loss_type if additional_args.global_loss_type is not None else args.global_loss_type
     args.global_alpha = additional_args.global_alpha if additional_args.global_alpha is not None else args.global_alpha
     args.no_reg_to_recover = str2bool(additional_args.no_reg_to_recover) if additional_args.no_reg_to_recover is not None else args.no_reg_to_recover
 
-    # dataset type
-    args.iid = str2bool(additional_args.iid) if additional_args.iid is not None else args.iid
-    args.data_hetero_alg = additional_args.data_hetero_alg if additional_args.data_hetero_alg is not None else args.data_hetero_alg
-
+    # other settings
     args.exp_name = additional_args.exp_name if additional_args.exp_name is not None else make_exp_name(args)
     args.model = args.model.lower()
     args.dataset = args.dataset.lower()
@@ -193,11 +180,6 @@ def make_exp_name(args):
 
     if args.global_loss_type == 'l2':
         title += f'fedprox_{args.global_alpha}_'
-
-    if args.pruning and args.base_sparsity != args.target_sparsity:
-        title += f"{args.pruning_type}_{args.plan_type}_bs_{args.base_sparsity}_ts_{args.target_sparsity}"
-    else:
-        title += f"vanilla_bs_{args.base_sparsity}_ts_{args.target_sparsity}"
 
     return title + f"_iid_{args.iid}_lr_{args.scheduler}_{args.lr}_localep_{args.local_ep}"
 
