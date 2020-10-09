@@ -96,6 +96,8 @@ def read_argv():
     parser.add_argument('--temp', type=float)
     parser.add_argument('--beta', type=float)
     parser.add_argument('--num_classes', type=int)
+    parser.add_argument('--oracle', type=str)
+    parser.add_argument('--oracle_path', type=str)
     parser.add_argument('--pruning', type=str)
     parser.add_argument('--pruning_type', type=str)
     parser.add_argument('--plan_type', type=str)
@@ -152,7 +154,8 @@ def read_argv():
     args.smoothing = additional_args.smoothing if additional_args.smoothing is not None else args.smoothing
     args.temp = additional_args.temp if additional_args.temp is not None else args.temp
     args.beta = additional_args.beta if additional_args.beta is not None else args.beta
-    args.num_classes = additional_args.num_classes if additional_args.num_classes is not None else args.num_classes
+    args.oracle = str2bool(additional_args.oracle if additional_args.oracle is not None else args.oracle)
+    args.oracle_path = additional_args.oracle_path if additional_args.oracle_path is not None else args.oracle_path
     
     # pruning settings
     args.pruning = str2bool(additional_args.pruning if additional_args.pruning is not None else args.pruning)

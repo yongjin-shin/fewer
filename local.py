@@ -16,15 +16,17 @@ class Local:
 
         # model & optimizer
         self.model = create_nets(self.args, 'LOCAL').to(self.args.server_location)
+        self.oracle = self.read_oracle() if self.args.oracle else None
+        self.round_global = None
         self.optim, self.lr_scheduler = None, None
         self.criterion = OverhaulLoss(self.args)
         self.epochs = self.args.local_ep
 
     def train(self):
-        if (self.args.global_loss_type != 'none'):
+        if self.args.global_loss_type != 'none':
             self.keep_global()
             
-        if (self.args.mode == 'KD') or (self.args.mode =='FedLSD'):
+        if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD'):
             self.keep_global()
         
         t_logits = None
@@ -37,9 +39,12 @@ class Local:
                 data = data.to(self.args.device)
                 target = target.to(self.args.device)
                 output = self.model(data)
-                if (self.args.mode == 'KD') or (self.args.mode =='FedLSD'):
+                if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD'):
                     with torch.no_grad():
-                        t_logits = self.round_global(data)
+                        if self.args.oracle:
+                            t_logits = self.oracle(data)
+                        else:
+                            t_logits = self.round_global(data)
                         
                 loss = self.criterion(output, target, t_logits)
                 
@@ -133,3 +138,8 @@ class Local:
             raise NotImplemented
         
         return loss * 0.5
+
+    def read_oracle(self):
+        model = create_nets(self.args, 'Oracle').to(self.args.server_location)
+        model.load_state_dict(torch.load(f"./log/{self.args.oracle_path}/model.h5"))
+        return model
