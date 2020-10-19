@@ -9,8 +9,8 @@ aggregation_alg: 'fedavg' # aggregtion algorithm
 
 # Distill arguments
 mode: 'CE' # CE corresponds to baseline (cross-entropy loss)
-smoothing: 0.3
-temp: 0.5
+smoothing: 0.0
+temp: 1
 beta: 1
 num_classes: 10
 oracle: False
@@ -32,25 +32,30 @@ signal_as_mask: False
 
 # global regularizer arguments
 global_alpha: 0.0
-global_loss_type: 'l2'
+global_loss_type: 'none'
 no_reg_to_recover: False
 
 # model arguments
 model: 'cifarcnn' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res
 hidden: 256
 loss_func: 'CrossEntropy'
-lr: 0.03
+lr: 0.01
 optimizer: 'sgd'  # 'sgd'
 momentum: 0.9
 weight_decay: 0.0000
-scheduler: 'linear'  # cosine | linear | constant | step
+scheduler: 'constant'  # cosine | linear | constant | step
 
 
 # dataset arguments
 dataset: 'cifar10' # mnist, fmnist, cifar10
 iid: False  # True, False
-data_hetero_alg: fedavg  # fedma
+data_hetero_alg: fedma  # fedavg, fedma
 nb_max_classes: 2  # non-iid일 경우, 하나의 로컬이 가질 수 있는 최대한 class 개수
+
+
+# analysis
+inspection_rounds: [1, 5, 10, 20, 50, 100, 200, 300]
+
 
 # misc
 gpu: True  # True, False
@@ -58,5 +63,4 @@ cuda_type: 0  # 0, 1
 server_location: 'cpu'  # gpu, cpu
 seed: 100
 nb_exp_reps: 1  # 반복실험 횟수
-exp_name: 'test'
-
+exp_name: 'analysis'

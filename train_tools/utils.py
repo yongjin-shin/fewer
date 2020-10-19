@@ -1,7 +1,7 @@
 import torch, copy
 from .models import *
 
-__all__ = ['create_nets', 'get_size', 'get_server_location', 'get_device', 'get_models_variance']
+__all__ = ['create_nets', 'get_size', 'get_server_location', 'get_device', 'get_models_variance', 'tensor_concater']
 
 
 MODELS = {'mlp': MLP, 'deep_mlp': DeepMLP, 'testcnn': TestCNN,'mnistcnn': MnistCNN, 'cifarcnn': CifarCNN,
@@ -113,3 +113,12 @@ def get_variance(server, locals, device):
 
 def get_models_variance(server, locals, device):
     return get_variance(server, locals, device)
+
+
+def tensor_concater(tensor1, tensor2):
+    if tensor1 is None:
+        tensor1 = tensor2
+    else:
+        tensor1 = torch.cat((tensor1, tensor2), dim=0)
+        
+    return tensor1

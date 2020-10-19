@@ -36,10 +36,12 @@ class OverhaulLoss(nn.Module):
         elif self.mode == 'KD':
             with torch.no_grad():
                 t_distill = torch.softmax(t_logits/self.temp, dim=1)
-
+                #print(t_distill)
+            
             ce_loss = cross_entropy(logits, target, reduction='none')
             kd_loss = ((self.temp)**2) * cross_entropy(logits/self.temp, t_distill, reduction='none')
             loss +=  ((1-self.beta)*ce_loss + self.beta*kd_loss)
+            #print((target == t_distill.max(dim=1)[1]).sum().item())
 
         # FedLSD
         elif self.mode == 'FedLSD':
@@ -48,9 +50,20 @@ class OverhaulLoss(nn.Module):
                 hard_target = onehot(target, N=self.num_classes).float()
                 t_distill = torch.softmax(t_logits/self.temp, dim=1)
                 new_target = ((1-self.smoothing) * hard_target) + (self.smoothing * t_distill)
-
             loss += cross_entropy(logits, new_target, reduction='none')
+        
+        # Random Soft
+        elif self.mode == 'RandKD':
+            with torch.no_grad():
+                t_distill = torch.softmax(t_logits.sort()[0]/self.temp, dim=1)
+                #print(t_distill)
             
+            ce_loss = cross_entropy(logits, target, reduction='none')
+            kd_loss = ((self.temp)**2) * cross_entropy(logits/self.temp, t_distill, reduction='none')
+            loss +=  ((1-self.beta)*ce_loss + self.beta*kd_loss)
+            #print((target == t_distill.max(dim=1)[1]).sum().item())
+                
+        
         loss = loss.mean()  # Average Batch Loss
 
         return loss

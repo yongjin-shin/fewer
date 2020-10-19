@@ -22,16 +22,18 @@ class Logger:
         self.args = None
         self.tot_sparsity = None
 
-    def get_args(self, args):
+    def get_args(self, args, allow_print=True):
         self.args = args
         self.tot_sparsity = args.target_sparsity
 
         # Create saving folder
         self.path = f"{self.path}/[{args.model}-{args.dataset}]{args.exp_name}"
         Path(self.path).mkdir(parents=True, exist_ok=True)
-        for k in sorted(vars(args).keys()):
-            print("{}: {}".format(k, vars(args)[k]))
-        print(f"\033[91mPath: {self.path}\033[00m")
+        
+        if allow_print:        
+            for k in sorted(vars(args).keys()):
+                print("{}: {}".format(k, vars(args)[k]))
+            print(f"\033[91mPath: {self.path}\033[00m")
 
     def save_model(self, param, exp_id):
         Path(f"{self.path}/{exp_id}").mkdir(parents=True, exist_ok=True)
@@ -120,6 +122,7 @@ def read_argv():
     parser.add_argument('--dataset', type=str)
     parser.add_argument('--iid', type=str)
     parser.add_argument('--data_hetero_alg', type=str)
+    parser.add_argument('--inspection_rounds', type=list)
     parser.add_argument('--exp_name', type=str, default=None)
     additional_args = parser.parse_args()
 
@@ -182,6 +185,9 @@ def read_argv():
     args.exp_name = additional_args.exp_name if additional_args.exp_name is not None else make_exp_name(args)
     args.model = args.model.lower()
     args.dataset = args.dataset.lower()
+    
+    # analysis
+    args.inspection_rounds = additional_args.inspection_rounds if additional_args.inspection_rounds is not None else args.inspection_rounds
     return args
 
 

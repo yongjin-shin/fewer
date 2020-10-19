@@ -26,7 +26,7 @@ class Local:
         if self.args.global_loss_type != 'none':
             self.keep_global()
             
-        if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD'):
+        if ('KD' in self.args.mode) or (self.args.mode == 'FedLSD'):
             self.keep_global()
         
         t_logits = None
@@ -39,11 +39,12 @@ class Local:
                 data = data.to(self.args.device)
                 target = target.to(self.args.device)
                 output = self.model(data)
-                if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD'):
+                if ('KD' in self.args.mode) or (self.args.mode == 'FedLSD'):
                     with torch.no_grad():
                         if self.args.oracle:
                             t_logits = self.oracle(data)
                         else:
+                            self.round_global.to(data.device)
                             t_logits = self.round_global(data)
                         
                 loss = self.criterion(output, target, t_logits)

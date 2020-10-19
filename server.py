@@ -111,7 +111,6 @@ class Server:
             # Sample Clients
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
             clients_dataset = [self.dataset_locals[i] for i in sampled_devices]
-
             # local pruning step (client training & upload models)
             train_loss, updated_locals, len_datasets, recovery_signals = self.clients_training(
                 clients_dataset=clients_dataset, keeped_masks=global_mask, use_recovery_signal=self.args.use_recovery_signal)
@@ -135,6 +134,9 @@ class Server:
                                             fed_round, exp_id, ellapsed_time, 
                                             self.server_lr_scheduler.get_last_lr()[0],
                                             model_variance))
+            
+            if (fed_round+1) in self.args.inspection_rounds:
+                torch.save(self.model.state_dict(), f"{self.logger.path}/global_%d.pth"%(fed_round+1))
 
         return self.container, self.model
 
