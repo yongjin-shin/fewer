@@ -122,6 +122,7 @@ def read_argv():
     parser.add_argument('--dataset', type=str)
     parser.add_argument('--iid', type=str)
     parser.add_argument('--data_hetero_alg', type=str)
+    parser.add_argument('--dir_alpha', type=float)
     parser.add_argument('--inspection_rounds', type=list)
     parser.add_argument('--exp_name', type=str, default=None)
     additional_args = parser.parse_args()
@@ -181,6 +182,7 @@ def read_argv():
     # dataset type
     args.iid = str2bool(additional_args.iid) if additional_args.iid is not None else args.iid
     args.data_hetero_alg = additional_args.data_hetero_alg if additional_args.data_hetero_alg is not None else args.data_hetero_alg
+    args.dir_alpha = additional_args.dir_alpha if additional_args.dir_alpha is not None else args.dir_alpha
 
     args.exp_name = additional_args.exp_name if additional_args.exp_name is not None else make_exp_name(args)
     args.model = args.model.lower()
