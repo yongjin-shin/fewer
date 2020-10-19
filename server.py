@@ -14,20 +14,16 @@ __all__ = ['Server']
 
 class Server:
     def __init__(self, args, logger):
-
         # important variables
         self.args, self.logger = args, logger
         self.locals = Local(args=args)
-        
-        # sparsity handler
-        # self.sparsity_handler = SparsityHandler(args)
-        # self.sparsity = 0
         self.tot_comm_cost = 0
 
         # dataset
         self.dataset_train, self.dataset_locals = None, None
         self.len_test_data = 0
         self.test_loader = None
+        self.true_test_target = []
 
         # about optimization
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -37,6 +33,7 @@ class Server:
 
         # about model
         self.model = None
+        self.dummy_model = None
         self.init_cost = 0
         self.make_model()
         self.make_opt()
@@ -55,26 +52,30 @@ class Server:
 
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
             clients_dataset = [self.dataset_locals[i] for i in sampled_devices]
-            train_loss, updated_locals, len_datasets = self.clients_training(clients_dataset=clients_dataset)
+            local_results = self.clients_training(clients_dataset=clients_dataset)
 
-            self.aggregation_models(updated_locals, len_datasets)
-            test_loss, test_acc = self.test()
+            self.aggregation_models(local_results['updated_locals'], local_results['len_datasets'])
+            test_results = self.test()
+            # test_results = self.test_agg_vs_ensemble(local_results['updated_locals'])
+
             self.server_lr_scheduler.step()
 
             end_time = time.time()
             ellapsed_time = end_time - start_time
-            self.logger.get_results(Results(train_loss, test_loss, test_acc, 
+            self.logger.get_results(Results(local_results['loss'], test_results['loss'], test_results['acc'],
                                             0, self.tot_comm_cost,
-                                            fed_round, exp_id, ellapsed_time, 
+                                            fed_round, exp_id, ellapsed_time,
                                             self.server_lr_scheduler.get_last_lr()[0],
-                                            0))
+                                            0, 0, 0))
+            # np.mean(local_results['kld']), test_results['kld'], test_results['ensemble_acc']))
+
             gc.collect()
             torch.cuda.empty_cache()
 
         return self.container, self.model
 
     def clients_training(self, clients_dataset):
-        updated_locals, train_acc = [], []
+        updated_locals, train_acc, local_kld = [], [], []
         train_loss, _cnt = 0, 0
         len_datasets = []
 
@@ -85,9 +86,10 @@ class Server:
             self.locals.get_lr(server_lr=self.server_lr_scheduler.get_last_lr()[0])
 
             # train local
-            local_loss, local_acc = self.locals.train()
-            train_loss += local_loss
-            train_acc.append(local_acc)
+            local_results = self.locals.train()
+            train_loss += local_results['loss']
+            train_acc.append(local_results['acc'])
+            local_kld.append(local_results['kld'])
 
             # uploads local
             updated_locals.append(self.locals.upload_model())
@@ -97,38 +99,85 @@ class Server:
             self.locals.reset()
 
         train_loss /= (_cnt+1)
-        print(f'Local Train Acc : {train_acc}')
+        with np.printoptions(precision=2, suppress=True):
+            print('Local Train Acc :', np.array(train_acc)/100)
+            print('Local Train KLD :', np.array(local_kld))
 
-        return train_loss, updated_locals, len_datasets
+        ret = {
+            'loss': train_loss,
+            'kld': np.mean(local_kld),
+            'len_datasets': len_datasets,
+            'updated_locals': updated_locals
+        }
+        return ret
 
     def aggregation_models(self, updated_locals, len_datasets):
         self.model.load_state_dict(copy.deepcopy(self.aggregate_model_func(updated_locals, len_datasets)))
 
     def test(self):
-        self.model.to(self.args.device).eval()
-        test_loss, correct, itr = 0, 0, 0
+        ret = get_test_results(self.args, self.model, self.test_loader, self.criterion,
+                               return_loss=True, return_acc=True, return_logit=False)
+        return ret
 
-        for itr, (data, target) in enumerate(self.test_loader):
-            data = data.to(self.args.device)
-            target = target.to(self.args.device)
-            output = self.model(data)
+    def test_agg_vs_ensemble(self, locals):
+        global_ret = get_test_results(self.args, self.model, self.test_loader, self.criterion,
+                                      return_loss=True, return_acc=True, return_logit=True)
+        global_logits = global_ret['logits']
 
-            test_loss += self.criterion(output, target).item()
-            y_pred = torch.max(output, dim=1)[1]
-            correct += torch.sum(y_pred.view(-1) == target.to(self.args.device).view(-1)).cpu().item()
+        local_logits = []
+        for local_model in locals:
+            self.dummy_model.load_state_dict(copy.deepcopy(local_model))
+            ret = get_test_results(self.args, self.dummy_model, self.test_loader, self.criterion,
+                                   return_loss=False, return_acc=False, return_logit=True)
+            local_logits.append(ret['logits'])
+        local_logits = np.dstack(local_logits)
+        major_logits = []
+        ensemble_acc = 0
+        for i in range(len(global_logits)):
+            # vote = np.argmax(local_logits[i], axis=0)
+            # major = np.argmax(np.bincount(vote))
+            # if major == self.true_test_target[i]:
+            #     ensemble_acc += 1
+            #
+            # major_idx = np.where(vote == major)[0]
+            # voted_logits = local_logits[i, :, major_idx]
+            # mean_logits = np.mean(voted_logits, axis=0)
+            # major_logits.append(mean_logits)
 
-        self.model.to(self.args.server_location).train()
-        return test_loss / (itr + 1), 100 * float(correct) / float(self.len_test_data)
+            mean_logits = np.mean(local_logits[i], axis=1)
+            major = np.argmax(mean_logits)
+            if major == self.true_test_target[i]:
+                ensemble_acc += 1
+            major_logits.append(mean_logits)
+
+        major_logits = np.vstack(major_logits)
+        ensemble_acc = ensemble_acc / len(global_logits) * 100
+
+        #KL(True||Est) = KL(Ensemble||Aggregate)
+        kl = compute_js_divergence(major_logits, global_logits)
+
+        ret = {
+            'loss': global_ret['loss'],
+            'acc': global_ret['acc'],
+            'kld': kl,
+            'ensemble_acc': ensemble_acc
+        }
+        return ret
 
     def get_data(self, dataset_server, dataset_locals, dataset_test):
         self.dataset_train, self.dataset_locals = dataset_server, dataset_locals
-        self.test_loader = DataLoader(dataset_test, batch_size=100, shuffle=True)
+        self.test_loader = DataLoader(dataset_test, batch_size=100, shuffle=False)
         self.len_test_data = dataset_test.__len__()
+        for i, (x, y) in enumerate(self.test_loader):
+            self.true_test_target.append(y)
+        self.true_test_target = np.concatenate(self.true_test_target)
 
     def make_model(self):
         model = create_nets(self.args, 'SERVER')
+        dummy_model = create_nets(self.args, 'DUMMY')
         print(model)
         self.model = model.to(self.args.server_location)
+        self.dummy_model = dummy_model.to(self.args.server_location)
         self.init_cost = get_size(self.model.parameters())
 
     def make_opt(self):

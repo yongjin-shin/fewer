@@ -15,7 +15,12 @@ class OverhaulLoss(nn.Module):
         self.smoothing = args.smoothing
         self.beta = args.beta
 
-    def forward(self, outputs, target, t_logits=None):
+    def beta_scheduler(self, acc):
+        # y = ((0.01 - self.beta)/(100 - 10))*(acc - 10) + self.beta
+        y = (0.8 / 100)*acc + 0.1
+        return y
+
+    def forward(self, outputs, target, t_logits=None, acc=None):
         logits = outputs
         loss = torch.zeros(logits.size(0)).to(str(target.device)) # initialize loss
 
@@ -39,7 +44,12 @@ class OverhaulLoss(nn.Module):
 
             ce_loss = cross_entropy(logits, target, reduction='none')
             kd_loss = ((self.temp)**2) * cross_entropy(logits/self.temp, t_distill, reduction='none')
-            loss +=  ((1-self.beta)*ce_loss + self.beta*kd_loss)
+            if acc is None:
+                loss += ((1-self.beta)*ce_loss + self.beta*kd_loss)
+            else:
+                beta = self.beta_scheduler(acc)
+                loss += ((1-self.beta)*ce_loss + beta*kd_loss)
+                # print(acc, beta)
 
         # FedLSD
         elif self.mode == 'FedLSD':

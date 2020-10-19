@@ -9,9 +9,8 @@ __all__ = ['Results', 'Logger', 'read_argv', 'make_exp_name']
 
 
 Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparsity',
-                                 'cost', 'round', 'exp_id', 'ellapsed_time', 'lr', 'var'])
-rets = ['ACC', 'Loss']
-xs = ['sparsity', 'round', 'Cost']
+                                 'cost', 'round', 'exp_id', 'ellapsed_time', 'lr',
+                                 'd_g2l', 'd_e2g', 'ensemble_acc'])
 
 
 class Logger:
@@ -43,10 +42,12 @@ class Logger:
     def print_data(self, results):
         print(f"Train loss: {results.train_loss:.3f} "
               f"Test loss: {results.test_loss:.3f} | "
-              f"Acc: {results.test_acc:.3f} | "
+              f"Acc: {results.test_acc:.3f}/{results.ensemble_acc:.3f} | "
+              f"D(G2L): {results.d_g2l:.3f} | "
+              f"D(E2G): {results.d_e2g:.3f} | "
               f"Time: {results.ellapsed_time:.2f}s | "
-              f"lr: {results.lr:.5f} | "
-              f"var: {results.var:.5f} | ")
+              f"lr: {results.lr:.5f}"
+              )
 
     def save_data(self):
         with open(f"{self.path}/results.json", 'w') as fp:
@@ -61,9 +62,11 @@ class Logger:
         self.exp_results[results.exp_id]['train_loss'].append(results.train_loss)
         self.exp_results[results.exp_id]['test_loss'].append(results.test_loss)
         self.exp_results[results.exp_id]['test_acc'].append(results.test_acc)
+        self.exp_results[results.exp_id]['ensemble_acc'].append(results.ensemble_acc)
         self.exp_results[results.exp_id]['sparsity'].append(results.sparsity)
         self.exp_results[results.exp_id]['lr'].append(results.lr)
-        self.exp_results[results.exp_id]['var'].append(results.var)
+        self.exp_results[results.exp_id]['d_e2g'].append(results.d_e2g)
+        self.exp_results[results.exp_id]['d_g2l'].append(results.d_g2l)
 
     def make_basic_dict(self):
         return {'round': [],
@@ -71,9 +74,11 @@ class Logger:
                 'train_loss': [],
                 'test_loss': [],
                 'test_acc': [],
+                'ensemble_acc': [],
+                'd_e2g': [],
+                'd_g2l': [],
                 'sparsity': [],
                 'lr': [],
-                'var': []
                 }
 
     def save_yaml(self):
@@ -94,6 +99,7 @@ def read_argv():
     parser.add_argument('--smoothing', type=float)
     parser.add_argument('--temp', type=float)
     parser.add_argument('--beta', type=float)
+    parser.add_argument('--use_beta_scheduler', type=str)
     parser.add_argument('--num_classes', type=int)
     parser.add_argument('--oracle', type=str)
     parser.add_argument('--oracle_path', type=str)
@@ -157,6 +163,8 @@ def read_argv():
     args.smoothing = additional_args.smoothing if additional_args.smoothing is not None else args.smoothing
     args.temp = additional_args.temp if additional_args.temp is not None else args.temp
     args.beta = additional_args.beta if additional_args.beta is not None else args.beta
+    args.use_beta_scheduler = str2bool(
+        additional_args.use_beta_scheduler) if additional_args.use_beta_scheduler is not None else args.use_beta_scheduler
     args.oracle = str2bool(additional_args.oracle if additional_args.oracle is not None else args.oracle)
     args.oracle_path = additional_args.oracle_path if additional_args.oracle_path is not None else args.oracle_path
 

@@ -156,17 +156,20 @@ def get_avg(data, xs, ys):
                     avg['loss']['train'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
                 else:
                     avg['loss']['test'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
-            else:
-                if 'acc' in col:
-                    avg['acc'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
+            elif 'acc' in col:
+                if 'ensemble' in col:
+                    avg['acc']['ensemble'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
                 else:
-                    avg[col] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
+                    avg['acc']['agg'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
+            else:
+                avg[col] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
 
     return avg
 
 
 def read_all(root, folders, args):
-    default_ys = ['train_loss', 'test_loss', 'test_acc', 'var', 'lr', 'cost']
+    # default_ys = ['train_loss', 'test_loss', 'test_acc', 'ensemble_acc', 'd_e2g', 'd_g2l', 'var', 'lr', 'cost']
+    default_ys = ['train_loss', 'test_loss', 'test_acc', 'd_e2g', 'd_g2l', 'var', 'lr', 'cost']
     ys = []
     for _y in args.ys:
         for default_y in default_ys:
@@ -178,7 +181,7 @@ def read_all(root, folders, args):
         path = root + folder
         with open(f'{path}/results.json') as f:
             d = json.load(f)
-            dd = get_avg(d, args.xs, ys)
+            dd = get_avg(d, args.xs, list(np.unique(ys)))
             dd['path'] = path
             data.append(dd)
 
@@ -220,6 +223,18 @@ def line_plot(args, x, y, y_type, label, color):
 
             y_hat = smoothing(args, y['train']['mean'])
             plt.plot(x['raw'], y_hat, color=color, alpha=0.5, linestyle='--')
+    elif 'acc' == y_type:
+        if args.has_ensemble:
+            y_hat = smoothing(args, y['agg']['mean'])
+            plt.plot(x['raw'], y_hat, label=label, lw=1, color=color, alpha=1)
+            plt.fill_between(x['raw'], y['agg']['lower'], y['agg']['upper'], color=color, alpha=0.2)
+
+            y_hat = smoothing(args, y['ensemble']['mean'])
+            plt.plot(x['raw'], y_hat, color=color, alpha=0.2, linestyle='--')
+        else:
+            y_hat = smoothing(args, y['agg']['mean'])
+            plt.plot(x['raw'], y_hat, label=label, color=color, alpha=0.5)
+
     else:
         if y_type == 'lr':
             y_hat = y['mean']
@@ -243,6 +258,12 @@ def plot(args, x, y, data):
     elif 'loss' in y:
         plt.ylabel('Loss', fontsize=20)
         plt.ylim(args.ylim['loss'][0], args.ylim['loss'][1]) if args.ylim is not None else None
+    elif 'd_e2g' in y:
+        plt.ylabel(r'$D[p_{E}\Vert p_{G}]$', fontsize=20)
+        # plt.ylabel('JS[Ensemble||Aggregated]', fontsize=20)
+    elif 'd_g2l' in y:
+        plt.ylabel(r'$D[p_{L}\Vert p_{G}]$', fontsize=20)
+        # plt.ylabel('Avg.D[PL||PG]', fontsize=20)
     else:
         plt.ylabel(y, fontsize=20)
 
@@ -276,6 +297,7 @@ if __name__ == '__main__':
     parser.add_argument('--legend', nargs='+')
     parser.add_argument('--title', type=str)
     parser.add_argument('--no_test_loss', default=False, action='store_true')
+    parser.add_argument('--has_ensemble', default=False, action='store_true')
     parser.add_argument('--no_smoothing', default=False, action='store_true')
     parser.add_argument('--window_size', default=51, type=int)
     parser.add_argument('--poly', default=3, type=int)
