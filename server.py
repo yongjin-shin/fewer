@@ -42,7 +42,8 @@ class Server:
         self.container = []
         self.nb_unique_label = 0
         self.nb_client_per_round = max(int(self.args.ratio_clients_per_round * self.args.nb_devices), 1)
-        self.sampling_clients = lambda nb_samples: np.random.choice(self.args.nb_devices, nb_samples, replace=False)  
+        self.sampling_clients = lambda nb_samples: np.random.choice(self.args.nb_devices, nb_samples, replace=False)
+        self.betas = np.arange(0.1, 1, 0.2) if self.args.beta_validation else [self.args.beta]
 
     def train(self, exp_id=None):
         for fed_round in range(self.args.nb_rounds):
@@ -52,12 +53,14 @@ class Server:
 
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
             clients_dataset = [self.dataset_locals[i] for i in sampled_devices]
-            local_results = self.clients_training(clients_dataset=clients_dataset)
 
-            self.aggregation_models(local_results['updated_locals'], local_results['len_datasets'])
+            for beta in self.betas:
+                local_results = self.clients_training(clients_dataset=clients_dataset,
+                                                      beta=beta)
+                self.aggregation_models(local_results['updated_locals'], local_results['len_datasets'])
+
             test_results = self.test()
             # test_results = self.test_agg_vs_ensemble(local_results['updated_locals'])
-
             self.server_lr_scheduler.step()
 
             end_time = time.time()
@@ -74,7 +77,7 @@ class Server:
 
         return self.container, self.model
 
-    def clients_training(self, clients_dataset):
+    def clients_training(self, clients_dataset, beta):
         updated_locals, train_acc, local_kld = [], [], []
         train_loss, _cnt = 0, 0
         len_datasets = []
@@ -86,7 +89,7 @@ class Server:
             self.locals.get_lr(server_lr=self.server_lr_scheduler.get_last_lr()[0])
 
             # train local
-            local_results = self.locals.train()
+            local_results = self.locals.train(beta=beta)
             train_loss += local_results['loss']
             train_acc.append(local_results['acc'])
             local_kld.append(local_results['kld'])

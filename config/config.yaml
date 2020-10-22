@@ -13,6 +13,8 @@ smoothing: 0.3
 temp: 3
 beta: 0.5
 use_beta_scheduler: False
+beta_schedule_type: 'increasing' # increasing, decreasing
+beta_validation: False
 num_classes: 10
 oracle: False
 oracle_path:

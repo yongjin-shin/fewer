@@ -16,8 +16,10 @@ class Preprocessor:
         """ 서버에게 Train, Test 데이터 전달함 """
 
         dataset_train, dataset_test = self.download_dataset()
-        dataset_server, dataset_locals = self.make_data_for_local_and_server(dataset_train, self.args.data_hetero_alg)
-        server.get_data(dataset_server, dataset_locals, dataset_test)
+        dataset_real_test, dataset_valid, dataset_locals = self.make_data_for_local_and_server(dataset_train,
+                                                                                               dataset_test,
+                                                                                               self.args.data_hetero_alg)
+        server.get_data(dataset_valid, dataset_locals, dataset_real_test)
 
     def download_dataset(self):
         print(f"Get data: {self.args.dataset}...")
@@ -47,14 +49,28 @@ class Preprocessor:
 
         return dataset_train, dataset_test
 
-    def make_data_for_local_and_server(self, dataset_train, hetero_alg):
+    def make_data_for_local_and_server(self, dataset_train, dataset_test, hetero_alg):
         """서버와 데이터에게 얼마나 데이터 분배할지 결정. Train 데이터만 사용한다"""
 
         # non iid 데이터를 만들어준다
-        server_idx, locals_idx = self.make_non_iid(dataset_train.targets, hetero_alg)
+        locals_idx = self.make_non_iid(dataset_train.targets, hetero_alg)
 
         # 서버의 데이터
-        dataset_server = Subset(dataset_train, server_idx)
+        all_test_targets = dataset_test.targets
+        label_by_idx = {}
+        unique_target = np.unique(all_test_targets)
+        for ut in unique_target:
+            label_by_idx[ut] = np.where(all_test_targets == ut)[0]
+
+        server_idx = []
+        if self.args.nb_server_data > 0:
+            for ut in unique_target:
+                ut_idx = np.random.choice(label_by_idx[ut], self.args.nb_server_data, replace=False)
+                server_idx.extend(list(ut_idx))
+
+        test_idx = list(set(np.arange(len(all_test_targets))) - set(server_idx))
+        dataset_valid = Subset(dataset_test, server_idx)
+        dataset_real_test = Subset(dataset_test, test_idx)
 
         # 로컬의 데이터
         datasets_local = []
@@ -64,13 +80,15 @@ class Preprocessor:
             datasets_local.append(Subset(dataset_train, local_idx))
 
         print(f"\nDataset Length\n"
-              f" Center length: {dataset_server.__len__()}\n"
+              f" Center length: {dataset_valid.__len__()}\n"
+              f" Test length: {dataset_real_test.__len__()}\n"
               f" Local length: {len(datasets_local)} x {datasets_local[0].__len__()}\n")
         
-        return dataset_server, datasets_local
+        return dataset_real_test, dataset_valid, datasets_local
 
     def make_non_iid(self, labels, alg):
-        length = int((len(labels) - self.args.nb_server_data) / self.args.nb_devices)
+        length = int(len(labels) / self.args.nb_devices)
+        # length = int((len(labels) - self.args.nb_server_data) / self.args.nb_devices)
         idx = []
         
         # non-iid로 만들 필요가 없는 경우
@@ -144,9 +162,9 @@ class Preprocessor:
                 raise RuntimeError
 
         remained_idx = set(np.arange(len(labels))) - set(np.concatenate(idx))
-        server_idx = np.random.choice(list(remained_idx), size=self.args.nb_server_data)
+        # server_idx = np.random.choice(list(remained_idx), size=self.args.nb_server_data)
 
-        return server_idx, deque(idx)
+        return deque(idx)
 
     def mnist_data_augmentation(self):
         mean = [0.1307]

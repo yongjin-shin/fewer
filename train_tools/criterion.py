@@ -14,20 +14,26 @@ class OverhaulLoss(nn.Module):
         self.temp = args.temp
         self.smoothing = args.smoothing
         self.beta = args.beta
+        self.args = args
 
     def beta_scheduler(self, acc):
-        # y = ((0.01 - self.beta)/(100 - 10))*(acc - 10) + self.beta
-        y = (0.8 / 100)*acc + 0.1
+        if 'decrea' in self.args.beta_schedule_type:
+            y = (-0.8 / 100)*acc + 0.9
+        elif 'increa' in self.args.beta_schedule_type:
+            y = (0.8 / 100)*acc + 0.1
+        else:
+            raise NotImplemented
         return y
 
-    def forward(self, outputs, target, t_logits=None, acc=None):
+    def forward(self, outputs, target, t_logits=None, acc=None, beta=None):
         logits = outputs
         loss = torch.zeros(logits.size(0)).to(str(target.device)) # initialize loss
 
         # one-hot + cross-entropy loss
         if self.mode == 'CE':
-            hard_target = onehot(target, N=self.num_classes).float()
-            loss += cross_entropy(logits, hard_target, reduction='none')
+            # hard_target = onehot(target, N=self.num_classes).float()
+            # loss += cross_entropy(logits, hard_target, reduction='none')
+            loss += F.cross_entropy(logits, target, reduction='none')
         ############### Soft Target Methods ##############################################
 
         # label smoothing
@@ -44,11 +50,15 @@ class OverhaulLoss(nn.Module):
 
             ce_loss = cross_entropy(logits, target, reduction='none')
             kd_loss = ((self.temp)**2) * cross_entropy(logits/self.temp, t_distill, reduction='none')
+
+            if beta is None:
+                beta = self.beta
+
             if acc is None:
-                loss += ((1-self.beta)*ce_loss + self.beta*kd_loss)
+                loss += ((1-beta)*ce_loss + beta*kd_loss)
             else:
                 beta = self.beta_scheduler(acc)
-                loss += ((1-self.beta)*ce_loss + beta*kd_loss)
+                loss += ((1-beta)*ce_loss + beta*kd_loss)
                 # print(acc, beta)
 
         # FedLSD

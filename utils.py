@@ -100,6 +100,7 @@ def read_argv():
     parser.add_argument('--temp', type=float)
     parser.add_argument('--beta', type=float)
     parser.add_argument('--use_beta_scheduler', type=str)
+    parser.add_argument('--beta_schedule_type', type=str)
     parser.add_argument('--num_classes', type=int)
     parser.add_argument('--oracle', type=str)
     parser.add_argument('--oracle_path', type=str)
@@ -165,6 +166,7 @@ def read_argv():
     args.beta = additional_args.beta if additional_args.beta is not None else args.beta
     args.use_beta_scheduler = str2bool(
         additional_args.use_beta_scheduler) if additional_args.use_beta_scheduler is not None else args.use_beta_scheduler
+    args.beta_schedule_type = additional_args.beta_schedule_type if additional_args.beta_schedule_type is not None else args.beta_schedule_type
     args.oracle = str2bool(additional_args.oracle if additional_args.oracle is not None else args.oracle)
     args.oracle_path = additional_args.oracle_path if additional_args.oracle_path is not None else args.oracle_path
 

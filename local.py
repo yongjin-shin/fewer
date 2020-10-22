@@ -23,7 +23,7 @@ class Local:
         self.criterion = OverhaulLoss(self.args)
         self.epochs = self.args.local_ep
 
-    def train(self):
+    def train(self, beta=None):
         local_acc = None
         if self.args.global_loss_type != 'none':
             self.keep_global()
@@ -36,7 +36,8 @@ class Local:
                 local_acc = local_ret['acc']
 
         t_logits = None
-        fake_loader = self.sneaky_adversarial()
+        # fake_loader = self.sneaky_adversarial()
+        fake_loader = cycle([(None, None)])
 
         train_loss, train_acc, itr, ep = 0, 0, 0, 0
         self.model.to(self.args.device)
@@ -60,7 +61,7 @@ class Local:
                         else:
                             t_logits = self.round_global(data)
                         
-                loss = self.criterion(output, target, t_logits, acc=local_acc)
+                loss = self.criterion(output, target, t_logits, acc=local_acc, beta=beta)
                 
                 if self.args.global_loss_type != 'none':
                     loss += (self.args.global_alpha * self.loss_to_round_global())
