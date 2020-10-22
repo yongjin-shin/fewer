@@ -33,6 +33,7 @@ class Server:
         self.server_lr_scheduler = None
 
         # about model
+        self.layers_name = None
         self.model = None
         self.dummy_model = None
         self.init_cost = 0
@@ -70,6 +71,11 @@ class Server:
                                         exp_id=exp_id,
                                         description=str(beta))
 
+            # Layer Variance
+            layer_val = get_variance(self.layers_name, self.model.state_dict(),
+                                     local_results['updated_locals'], self.args.server_location)
+            print(layer_val)
+
             # 저장된 N개의 Aggregated model은 validation set에서 성능을 비교함
             # beta에 따라 다른 모델들 중 가장 좋은 성능을 보인 모델을 찾아냄
             valid_results, best_beta = self.valid(self.logger,
@@ -78,6 +84,7 @@ class Server:
             # best score를 지닌 모델을 불러옴
             model = self.logger.load_model(exp_id=exp_id,
                                            description=best_beta)
+
             # global model로 업데이트를 시킨 이후에
             # Test를 진행함!
             self.load_model(model)
@@ -85,13 +92,18 @@ class Server:
             # test_results = self.test_agg_vs_ensemble(local_results['updated_locals'])
             self.server_lr_scheduler.step()
 
+            # Layer Variance
+            layer_val = get_variance(self.layers_name, self.model.state_dict(),
+                                     local_results['updated_locals'], self.args.server_location)
+            print(layer_val)
+
             end_time = time.time()
             ellapsed_time = end_time - start_time
             self.logger.get_results(Results(local_results['loss'], test_results['loss'], test_results['acc'],
                                             0, self.tot_comm_cost,
                                             fed_round, exp_id, ellapsed_time,
                                             self.server_lr_scheduler.get_last_lr()[0],
-                                            best_beta, valid_results['acc']))
+                                            best_beta, valid_results['acc'], layer_val))
             # np.mean(local_results['kld']), test_results['kld'], test_results['ensemble_acc']))
 
             gc.collect()
@@ -253,6 +265,16 @@ class Server:
         self.model = model.to(self.args.server_location)
         self.dummy_model = dummy_model.to(self.args.server_location)
         self.init_cost = get_size(self.model.parameters())
+
+        params = [k for k in self.model.state_dict()]
+        self.layers_name = []
+        for layer in params:
+            split_name = layer.split('.')[0]
+            if 'weight' in split_name or 'bias' in split_name:
+                raise RuntimeError
+
+            self.layers_name.append(split_name)
+        self.layers_name = np.sort(np.unique(self.layers_name))
 
     def make_opt(self):
         self.server_optim = torch.optim.SGD(self.model.parameters(),

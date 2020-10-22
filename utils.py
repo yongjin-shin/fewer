@@ -7,10 +7,10 @@ from train_tools.utils import *
 
 __all__ = ['Results', 'Logger', 'read_argv', 'make_exp_name']
 
-
-Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparsity',
-                                 'cost', 'round', 'exp_id', 'ellapsed_time', 'lr',
-                                 'beta', 'ensemble_acc'])
+tup = ['train_loss', 'test_loss', 'test_acc', 'sparsity',
+       'cost', 'round', 'exp_id', 'ellapsed_time', 'lr',
+       'beta', 'ensemble_acc', 'layer_var']
+Results = namedtuple('Results', tup,)
 
 
 class Logger:
@@ -61,31 +61,26 @@ class Logger:
         if results.exp_id not in self.exp_results.keys():
             self.exp_results[results.exp_id] = self.make_basic_dict()
 
-        self.exp_results[results.exp_id]['round'].append(results.round)
-        self.exp_results[results.exp_id]['cost'].append(results.cost)
-        self.exp_results[results.exp_id]['train_loss'].append(results.train_loss)
-        self.exp_results[results.exp_id]['test_loss'].append(results.test_loss)
-        self.exp_results[results.exp_id]['test_acc'].append(results.test_acc)
-        self.exp_results[results.exp_id]['ensemble_acc'].append(results.ensemble_acc)
-        self.exp_results[results.exp_id]['sparsity'].append(results.sparsity)
-        self.exp_results[results.exp_id]['lr'].append(results.lr)
-        # self.exp_results[results.exp_id]['d_e2g'].append(results.d_e2g)
-        # self.exp_results[results.exp_id]['d_g2l'].append(results.d_g2l)
-        self.exp_results[results.exp_id]['beta'].append(results.beta)
+        for _item in results._fields:
+            self.exp_results[results.exp_id][_item].append(getattr(results, _item))
+
+        # self.exp_results[results.exp_id]['round'].append(results.round)
+        # self.exp_results[results.exp_id]['cost'].append(results.cost)
+        # self.exp_results[results.exp_id]['train_loss'].append(results.train_loss)
+        # self.exp_results[results.exp_id]['test_loss'].append(results.test_loss)
+        # self.exp_results[results.exp_id]['test_acc'].append(results.test_acc)
+        # self.exp_results[results.exp_id]['ensemble_acc'].append(results.ensemble_acc)
+        # self.exp_results[results.exp_id]['sparsity'].append(results.sparsity)
+        # self.exp_results[results.exp_id]['lr'].append(results.lr)
+        # # self.exp_results[results.exp_id]['d_e2g'].append(results.d_e2g)
+        # # self.exp_results[results.exp_id]['d_g2l'].append(results.d_g2l)
+        # self.exp_results[results.exp_id]['beta'].append(results.beta)
 
     def make_basic_dict(self):
-        return {'round': [],
-                'cost': [],
-                'train_loss': [],
-                'test_loss': [],
-                'test_acc': [],
-                'ensemble_acc': [],
-                'd_e2g': [],
-                'd_g2l': [],
-                'beta': [],
-                'sparsity': [],
-                'lr': [],
-                }
+        ret = {}
+        for _item in tup:
+            ret[_item] = []
+        return ret
 
     def save_yaml(self):
         f_name = f'{self.path}/exp_config.yaml'

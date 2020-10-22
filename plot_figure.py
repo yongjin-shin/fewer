@@ -136,7 +136,7 @@ def get_avg(data, xs, ys):
     cols = ys + xs
 
     for exp in data.keys():
-        if np.mean(data[exp]['test_acc']) < 20:
+        if np.mean(data[exp]['test_acc']) < 10:
             continue
         d = data[exp]
         for col in cols:
@@ -144,12 +144,13 @@ def get_avg(data, xs, ys):
 
     for col in cols:
         raw_vec = np.array(raw[col])
+        if 'layer_var' == col:
+            raw_vec = pd.DataFrame.from_dict(list(raw_vec.reshape(-1)))
         mean_vec = np.nanmean(raw_vec, axis=0)
         std_vec = np.nanstd(raw_vec, axis=0)
 
         if col in xs:
             avg[col] = {'raw': mean_vec}
-
         else:
             if 'loss' in col:
                 if 'train' in col:
@@ -161,6 +162,10 @@ def get_avg(data, xs, ys):
                     avg['acc']['ensemble'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
                 else:
                     avg['acc']['agg'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
+            elif 'layer' in col:
+                items = raw_vec.columns
+                for _item in items:
+                    avg[col][_item] = raw_vec[_item].values
             else:
                 avg[col] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
 
@@ -169,7 +174,7 @@ def get_avg(data, xs, ys):
 
 def read_all(root, folders, args):
     # default_ys = ['train_loss', 'test_loss', 'test_acc', 'ensemble_acc', 'd_e2g', 'd_g2l', 'var', 'lr', 'cost']
-    default_ys = ['train_loss', 'test_loss', 'test_acc', 'd_e2g', 'd_g2l', 'var', 'lr', 'cost']
+    default_ys = ['train_loss', 'test_loss', 'test_acc', 'd_e2g', 'd_g2l', 'layer_var', 'lr', 'cost', 'beta']
     ys = []
     for _y in args.ys:
         for default_y in default_ys:
@@ -233,8 +238,8 @@ def line_plot(args, x, y, y_type, label, color):
             plt.plot(x['raw'], y_hat, color=color, alpha=0.2, linestyle='--')
         else:
             y_hat = smoothing(args, y['agg']['mean'])
-            plt.plot(x['raw'], y_hat, label=label, color=color, alpha=0.5)
-
+            plt.fill_between(x['raw'], y['agg']['lower'], y['agg']['upper'], color=color, alpha=0.2)
+            plt.plot(x['raw'], y_hat, label=label, color=color)
     else:
         if y_type == 'lr':
             y_hat = y['mean']
@@ -248,8 +253,15 @@ def line_plot(args, x, y, y_type, label, color):
 def plot(args, x, y, data):
     fig = plt.figure(figsize=(8, 6))
     colors = cm.Set1
-    for idx, d in enumerate(data):
-        line_plot(args, x=d[x], y=d[y], y_type=y, label=args.legend[idx], color=colors(idx))
+    if not 'layer_var' == y:
+        for idx, d in enumerate(data):
+            line_plot(args, x=d[x], y=d[y], y_type=y, label=args.legend[idx], color=colors(idx))
+    else:
+        for idx, d in enumerate(data):
+            for j, k in enumerate(d[y].keys()):
+                plt.plot(d[x]['raw'], d[y][k], label=f"{args.legend[idx]}_{k}", color=colors(j),
+                         linestyle='--' if 'KD' not in args.legend[idx] else None,
+                         alpha=0.5 if 'KD' not in args.legend[idx] else None)
 
     plt.xlabel('Round', fontsize=20) if 'round' in x else plt.xlabel('Cost', fontsize=20)
     if 'acc' in y:

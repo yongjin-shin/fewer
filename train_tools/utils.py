@@ -4,7 +4,8 @@ from scipy.special import softmax
 from .models import *
 
 __all__ = ['create_nets', 'get_size', 'compute_kl_divergence', 'compute_js_divergence',
-           'get_test_results', 'get_server_location', 'get_device', 'get_models_variance']
+           'get_test_results', 'get_server_location', 'get_device',
+           'get_variance']
 
 
 MODELS = {'mlp': MLP, 'deep_mlp': DeepMLP, 'testcnn': TestCNN,'mnistcnn': MnistCNN, 'cifarcnn': CifarCNN,
@@ -136,9 +137,17 @@ def calc_var(server, local):
 
 
 def get_vec(order, vecs, device):
-    ret = torch.empty((0, 1)).to(device)
+    ret = {}
     for k in order:
-        ret = torch.cat((ret, vecs[k].reshape((-1, 1))), axis=0)
+        serial_vec = torch.empty((1, 0)).to(device)
+
+        weight = vecs[f'{k}.weight'].reshape((1, -1))
+        serial_vec = torch.cat((serial_vec, weight), axis=-1)
+
+        bias = vecs[f'{k}.bias'].reshape((1, -1))
+        serial_vec = torch.cat((serial_vec, bias), axis=-1)
+
+        ret[k] = serial_vec
     return ret
 
 
@@ -146,13 +155,12 @@ def get_local_vec(order, locals, device):
     ret = []
     for local in locals:
         ret.append(get_vec(order, local, device))
-    return torch.cat(ret, dim=1)
+    return ret
 
 
-def get_variance(server, locals, device):
+def get_variance(calc_order, server_state_dict, locals, device):
     _vars = []
-    calc_order = [k for k in server]
-    server_vecs = get_vec(calc_order, server, device)
+    server_vecs = get_vec(calc_order, server_state_dict, device)
     local_vecs = get_local_vec(calc_order, locals, device)
 
     # server_norm = torch.norm(server_vecs)
@@ -161,12 +169,19 @@ def get_variance(server, locals, device):
     # inner_prod = server_vecs.T @ local_vecs
     # normalizer = server_norm * local_norms
     # ret = torch.var(inner_prod / normalizer)
-    cos = torch.nn.CosineSimilarity(dim=0)
-    ret = torch.log(torch.var(cos(server_vecs.repeat(1, local_vecs.shape[-1]),
-                                  local_vecs)))
+    cos = torch.nn.CosineSimilarity(dim=1)
+    # ret = torch.log(torch.var(cos(server_vecs.repeat(1, local_vecs.shape[-1]),
+    #                               local_vecs)))
+    ret_cos = {}
+    for layer in calc_order:
+        val_cos = torch.tensor([0], dtype=torch.float, device=device)
+        for i, local_vec in enumerate(local_vecs):
+            local_cos = torch.clamp(cos(server_vecs[layer], local_vec[layer]),
+                                    max=1,
+                                    min=-1)
+            # print(f"{layer}/{i}: {local_cos}")
+            val_cos += torch.abs(torch.acos(local_cos))
+        val_cos /= len(local_vecs)
+        ret_cos[layer] = round(val_cos.item(), 3)
+    return ret_cos
 
-    return ret.item()
-
-
-def get_models_variance(server, locals, device):
-    return get_variance(server, locals, device)
