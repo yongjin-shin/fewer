@@ -20,9 +20,10 @@ class Server:
         self.tot_comm_cost = 0
 
         # dataset
-        self.dataset_train, self.dataset_locals = None, None
+        self.dataset_locals = None
         self.len_test_data = 0
         self.test_loader = None
+        self.valid_loader = None
         self.true_test_target = []
 
         # about optimization
@@ -43,7 +44,8 @@ class Server:
         self.nb_unique_label = 0
         self.nb_client_per_round = max(int(self.args.ratio_clients_per_round * self.args.nb_devices), 1)
         self.sampling_clients = lambda nb_samples: np.random.choice(self.args.nb_devices, nb_samples, replace=False)
-        self.betas = np.arange(0.1, 1, 0.2) if self.args.beta_validation else [self.args.beta]
+        self.betas = np.array([0.1, 0.3, 0.5, 0.7, 0.9] if self.args.beta_validation \
+            else [self.args.beta])
 
     def train(self, exp_id=None):
         for fed_round in range(self.args.nb_rounds):
@@ -54,11 +56,31 @@ class Server:
             sampled_devices = self.sampling_clients(self.nb_client_per_round)
             clients_dataset = [self.dataset_locals[i] for i in sampled_devices]
 
+            # Beta를 바꿔가면서 동일한 local에 대해서 training을 진행함
+            # Aggregation을 진행한 다음 global로 바로 업데이트 하지않고 일단 HDD에 저장을 함
+            # 모델 저장은 beta값마다 하나씩 됨: path/exp_id/model_{beta}.h5 으로 저장됨.
+            local_results = None
             for beta in self.betas:
                 local_results = self.clients_training(clients_dataset=clients_dataset,
                                                       beta=beta)
-                self.aggregation_models(local_results['updated_locals'], local_results['len_datasets'])
+                self.aggregation_models(local_results['updated_locals'],
+                                        local_results['len_datasets'],
+                                        save_model=True,
+                                        logger=self.logger,
+                                        exp_id=exp_id,
+                                        description=str(beta))
 
+            # 저장된 N개의 Aggregated model은 validation set에서 성능을 비교함
+            # beta에 따라 다른 모델들 중 가장 좋은 성능을 보인 모델을 찾아냄
+            valid_results, best_beta = self.valid(self.logger,
+                                                  exp_id=exp_id)
+
+            # best score를 지닌 모델을 불러옴
+            model = self.logger.load_model(exp_id=exp_id,
+                                           description=best_beta)
+            # global model로 업데이트를 시킨 이후에
+            # Test를 진행함!
+            self.load_model(model)
             test_results = self.test()
             # test_results = self.test_agg_vs_ensemble(local_results['updated_locals'])
             self.server_lr_scheduler.step()
@@ -69,7 +91,7 @@ class Server:
                                             0, self.tot_comm_cost,
                                             fed_round, exp_id, ellapsed_time,
                                             self.server_lr_scheduler.get_last_lr()[0],
-                                            0, 0, 0))
+                                            best_beta, valid_results['acc']))
             # np.mean(local_results['kld']), test_results['kld'], test_results['ensemble_acc']))
 
             gc.collect()
@@ -103,8 +125,8 @@ class Server:
 
         train_loss /= (_cnt+1)
         with np.printoptions(precision=2, suppress=True):
-            print('Local Train Acc :', np.array(train_acc)/100)
-            print('Local Train KLD :', np.array(local_kld))
+            print(f'{beta} Local Train Acc :', np.array(train_acc)/100)
+            # print(f'Local Train KLD :', np.array(local_kld))
 
         ret = {
             'loss': train_loss,
@@ -114,8 +136,44 @@ class Server:
         }
         return ret
 
-    def aggregation_models(self, updated_locals, len_datasets):
-        self.model.load_state_dict(copy.deepcopy(self.aggregate_model_func(updated_locals, len_datasets)))
+    def aggregation_models(self, updated_locals, len_datasets, save_model=False, logger=None, exp_id=None,
+                           description=None):
+        """
+        - Aggregate를 하는데, 기존과 다른 점은 global 모델로 바로 반영하지 않고, 저장함!
+        - self.load_model에서 global model을 반영하도록 변경
+        """
+        aggregated_model = self.aggregate_model_func(updated_locals, len_datasets)
+        if save_model:
+            logger.save_model(param=aggregated_model, exp_id=exp_id, description=description)
+
+        return
+
+    def load_model(self, aggregated_model):
+        """
+        여기서 global model에 반영함
+        """
+        self.model.load_state_dict(copy.deepcopy(aggregated_model))
+
+    def valid(self, logger, exp_id):
+        """
+        1. 각 beta에 대해서 저장된 모델을 load
+        2. validation set에 대해서 acc 산출
+        3. 가장 큰 스코어에 대한 beta와 acc를 리턴
+        """
+        acc = []
+
+        for beta in self.betas:
+            model = logger.load_model(exp_id=exp_id, description=beta)
+            self.load_model(model)
+            ret = get_test_results(self.args, self.model, self.valid_loader, self.criterion,
+                                   return_loss=False, return_acc=True, return_logit=False)
+            acc.append(ret['acc'])
+        acc = np.array(acc)
+        best_idx = np.argmax(acc)
+
+        best_score = acc[best_idx]
+        best_beta = self.betas[best_idx]
+        return {'acc': best_score}, best_beta
 
     def test(self):
         ret = get_test_results(self.args, self.model, self.test_loader, self.criterion,
@@ -167,13 +225,26 @@ class Server:
         }
         return ret
 
-    def get_data(self, dataset_server, dataset_locals, dataset_test):
-        self.dataset_train, self.dataset_locals = dataset_server, dataset_locals
-        self.test_loader = DataLoader(dataset_test, batch_size=100, shuffle=False)
+    def get_data(self, dataset_valid, dataset_locals, dataset_test):
+        self.dataset_locals = dataset_locals
+
+        # Validation 데이터 불러오기
+        self.valid_loader = DataLoader(dataset_valid, batch_size=100, shuffle=True)
+        self.test_loader = DataLoader(dataset_test, batch_size=100, shuffle=True)
+
+        # 각 데이터 target에 대해서 bin count 프린
+        aa = []
+        for i, (x, y) in enumerate(self.valid_loader):
+            aa.append(y)
+        print('Validation Set: ', np.bincount(np.concatenate(aa)))
+
         self.len_test_data = dataset_test.__len__()
         for i, (x, y) in enumerate(self.test_loader):
             self.true_test_target.append(y)
         self.true_test_target = np.concatenate(self.true_test_target)
+        print('Test Set: ', np.bincount(self.true_test_target))
+
+        return
 
     def make_model(self):
         model = create_nets(self.args, 'SERVER')

@@ -10,7 +10,7 @@ __all__ = ['Results', 'Logger', 'read_argv', 'make_exp_name']
 
 Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparsity',
                                  'cost', 'round', 'exp_id', 'ellapsed_time', 'lr',
-                                 'd_g2l', 'd_e2g', 'ensemble_acc'])
+                                 'beta', 'ensemble_acc'])
 
 
 class Logger:
@@ -31,9 +31,12 @@ class Logger:
             print("{}: {}".format(k, vars(args)[k]))
         print(f"\033[91mPath: {self.path}\033[00m")
 
-    def save_model(self, param, exp_id):
+    def save_model(self, param, exp_id, description='final'):
         Path(f"{self.path}/{exp_id}").mkdir(parents=True, exist_ok=True)
-        torch.save(param, f"{self.path}/{exp_id}/model.h5")
+        torch.save(param, f"{self.path}/{exp_id}/model_{str(description)}.h5")
+
+    def load_model(self, exp_id, description='final'):
+        return torch.load(f"{self.path}/{exp_id}/model_{str(description)}.h5")
 
     def get_results(self, results):
         self.print_data(results)
@@ -43,8 +46,9 @@ class Logger:
         print(f"Train loss: {results.train_loss:.3f} "
               f"Test loss: {results.test_loss:.3f} | "
               f"Acc: {results.test_acc:.3f}/{results.ensemble_acc:.3f} | "
-              f"D(G2L): {results.d_g2l:.3f} | "
-              f"D(E2G): {results.d_e2g:.3f} | "
+              f"Beta: {results.beta:.2f} | "
+              # f"D(G2L): {results.d_g2l:.3f} | "
+              # f"D(E2G): {results.d_e2g:.3f} | "
               f"Time: {results.ellapsed_time:.2f}s | "
               f"lr: {results.lr:.5f}"
               )
@@ -65,8 +69,9 @@ class Logger:
         self.exp_results[results.exp_id]['ensemble_acc'].append(results.ensemble_acc)
         self.exp_results[results.exp_id]['sparsity'].append(results.sparsity)
         self.exp_results[results.exp_id]['lr'].append(results.lr)
-        self.exp_results[results.exp_id]['d_e2g'].append(results.d_e2g)
-        self.exp_results[results.exp_id]['d_g2l'].append(results.d_g2l)
+        # self.exp_results[results.exp_id]['d_e2g'].append(results.d_e2g)
+        # self.exp_results[results.exp_id]['d_g2l'].append(results.d_g2l)
+        self.exp_results[results.exp_id]['beta'].append(results.beta)
 
     def make_basic_dict(self):
         return {'round': [],
@@ -77,6 +82,7 @@ class Logger:
                 'ensemble_acc': [],
                 'd_e2g': [],
                 'd_g2l': [],
+                'beta': [],
                 'sparsity': [],
                 'lr': [],
                 }
@@ -101,6 +107,7 @@ def read_argv():
     parser.add_argument('--beta', type=float)
     parser.add_argument('--use_beta_scheduler', type=str)
     parser.add_argument('--beta_schedule_type', type=str)
+    parser.add_argument('--beta_validation', type=str)
     parser.add_argument('--num_classes', type=int)
     parser.add_argument('--oracle', type=str)
     parser.add_argument('--oracle_path', type=str)
@@ -124,6 +131,7 @@ def read_argv():
     parser.add_argument('--weight_decay', type=float)
     parser.add_argument('--server_location', type=str)
     parser.add_argument('--dataset', type=str)
+    parser.add_argument('--nb_server_data', type=int)
     parser.add_argument('--iid', type=str)
     parser.add_argument('--data_hetero_alg', type=str)
     parser.add_argument('--exp_name', type=str, default=None)
@@ -151,6 +159,7 @@ def read_argv():
 
     # dataset settings
     args.dataset = additional_args.dataset if additional_args.dataset is not None else args.dataset
+    args.nb_server_data = additional_args.nb_server_data if additional_args.nb_server_data is not None else args.nb_server_data
     args.iid = str2bool(additional_args.iid) if additional_args.iid is not None else args.iid
     args.data_hetero_alg = additional_args.data_hetero_alg if additional_args.data_hetero_alg is not None else args.data_hetero_alg
 
@@ -167,6 +176,8 @@ def read_argv():
     args.use_beta_scheduler = str2bool(
         additional_args.use_beta_scheduler) if additional_args.use_beta_scheduler is not None else args.use_beta_scheduler
     args.beta_schedule_type = additional_args.beta_schedule_type if additional_args.beta_schedule_type is not None else args.beta_schedule_type
+    args.beta_validation = str2bool(
+        additional_args.beta_validation) if additional_args.beta_validation is not None else args.beta_validation
     args.oracle = str2bool(additional_args.oracle if additional_args.oracle is not None else args.oracle)
     args.oracle_path = additional_args.oracle_path if additional_args.oracle_path is not None else args.oracle_path
 

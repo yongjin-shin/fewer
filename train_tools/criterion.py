@@ -55,6 +55,7 @@ class OverhaulLoss(nn.Module):
                 beta = self.beta
 
             if acc is None:
+                # print(f"DEL ME: {beta}")
                 loss += ((1-beta)*ce_loss + beta*kd_loss)
             else:
                 beta = self.beta_scheduler(acc)

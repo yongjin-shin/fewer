@@ -56,25 +56,30 @@ class Preprocessor:
         locals_idx = self.make_non_iid(dataset_train.targets, hetero_alg)
 
         # 서버의 데이터
+        # 일단 Test 데이터에서 각 class 별 index를 뽑아냄
         all_test_targets = dataset_test.targets
         label_by_idx = {}
         unique_target = np.unique(all_test_targets)
         for ut in unique_target:
             label_by_idx[ut] = np.where(all_test_targets == ut)[0]
 
+        # 앞에서 뽑아낸 class 별 index에서 각 class마다 nb_server_data만큼 validation set으로 뽑아냄
         server_idx = []
         if self.args.nb_server_data > 0:
             for ut in unique_target:
                 ut_idx = np.random.choice(label_by_idx[ut], self.args.nb_server_data, replace=False)
                 server_idx.extend(list(ut_idx))
 
+        # Valdiation을 제외한 나머지는 Test로 들어감!
         test_idx = list(set(np.arange(len(all_test_targets))) - set(server_idx))
+
+        # Valdiation은 혹시 모르니 한번 섞어줬음.
+        np.random.shuffle(server_idx)
         dataset_valid = Subset(dataset_test, server_idx)
         dataset_real_test = Subset(dataset_test, test_idx)
 
         # 로컬의 데이터
         datasets_local = []
-
         for i in range(self.args.nb_devices):
             local_idx = locals_idx.pop()
             datasets_local.append(Subset(dataset_train, local_idx))
@@ -161,9 +166,8 @@ class Preprocessor:
             else:
                 raise RuntimeError
 
-        remained_idx = set(np.arange(len(labels))) - set(np.concatenate(idx))
+        # remained_idx = set(np.arange(len(labels))) - set(np.concatenate(idx))
         # server_idx = np.random.choice(list(remained_idx), size=self.args.nb_server_data)
-
         return deque(idx)
 
     def mnist_data_augmentation(self):
