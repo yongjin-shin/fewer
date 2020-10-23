@@ -34,6 +34,11 @@ class OverhaulLoss(nn.Module):
             # hard_target = onehot(target, N=self.num_classes).float()
             # loss += cross_entropy(logits, hard_target, reduction='none')
             loss += F.cross_entropy(logits, target, reduction='none')
+            if torch.isnan(loss).any():
+                print(logits)
+                print(target)
+                print(loss)
+                raise RuntimeError
         ############### Soft Target Methods ##############################################
 
         # label smoothing

@@ -139,7 +139,7 @@ class Preprocessor:
                 idx = [defaultdict(list) for _ in range(self.args.nb_devices)]
                 for it, k in enumerate(unique_classes):
                     this_labels = np.concatenate(tot_idx_by_label[it])
-                    prop = np.random.dirichlet([0.2 for _ in range(self.args.nb_devices)])
+                    prop = np.random.dirichlet([self.args.dir_alpha for _ in range(self.args.nb_devices)])
                     prop = np.array([p * (len(idx_j) < length)
                                      for p, idx_j in zip(prop, idx_batch)])
                     prop = prop / prop.sum()

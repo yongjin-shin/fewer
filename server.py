@@ -72,13 +72,14 @@ class Server:
                                         description=str(beta))
 
             # Layer Variance
-            layer_val = get_variance(self.layers_name, self.model.state_dict(),
-                                     local_results['updated_locals'], self.args.server_location)
-            print(layer_val)
+            # layer_val = get_variance(self.layers_name, self.model.state_dict(),
+            #                          local_results['updated_locals'], self.args.server_location)
+            # print(layer_val)
 
             # 저장된 N개의 Aggregated model은 validation set에서 성능을 비교함
             # beta에 따라 다른 모델들 중 가장 좋은 성능을 보인 모델을 찾아냄
-            valid_results, best_beta = self.valid(self.logger,
+            valid_results, best_beta = self.valid(data_loader=self.valid_loader,
+                                                  logger=self.logger,
                                                   exp_id=exp_id)
 
             # best score를 지닌 모델을 불러옴
@@ -88,14 +89,14 @@ class Server:
             # global model로 업데이트를 시킨 이후에
             # Test를 진행함!
             self.load_model(model)
-            test_results = self.test()
-            # test_results = self.test_agg_vs_ensemble(local_results['updated_locals'])
+            # test_results = self.test()
+            test_results = self.test_agg_vs_ensemble(local_results['updated_locals'])
             self.server_lr_scheduler.step()
 
             # Layer Variance
-            layer_val = get_variance(self.layers_name, self.model.state_dict(),
-                                     local_results['updated_locals'], self.args.server_location)
-            print(layer_val)
+            # layer_val = get_variance(self.layers_name, self.model.state_dict(),
+            #                          local_results['updated_locals'], self.args.server_location)
+            # print(layer_val)
 
             end_time = time.time()
             ellapsed_time = end_time - start_time
@@ -103,7 +104,8 @@ class Server:
                                             0, self.tot_comm_cost,
                                             fed_round, exp_id, ellapsed_time,
                                             self.server_lr_scheduler.get_last_lr()[0],
-                                            best_beta, valid_results['acc'], layer_val))
+                                            0, test_results['ensemble_acc'], 0))
+                                            # best_beta, valid_results['acc'], layer_val))
             # np.mean(local_results['kld']), test_results['kld'], test_results['ensemble_acc']))
 
             gc.collect()
@@ -166,7 +168,7 @@ class Server:
         """
         self.model.load_state_dict(copy.deepcopy(aggregated_model))
 
-    def valid(self, logger, exp_id):
+    def valid(self, data_loader, logger, exp_id):
         """
         1. 각 beta에 대해서 저장된 모델을 load
         2. validation set에 대해서 acc 산출
@@ -177,7 +179,7 @@ class Server:
         for beta in self.betas:
             model = logger.load_model(exp_id=exp_id, description=beta)
             self.load_model(model)
-            ret = get_test_results(self.args, self.model, self.valid_loader, self.criterion,
+            ret = get_test_results(self.args, self.model, data_loader, self.criterion,
                                    return_loss=False, return_acc=True, return_logit=False)
             acc.append(ret['acc'])
         acc = np.array(acc)
@@ -198,19 +200,21 @@ class Server:
         global_logits = global_ret['logits']
 
         local_logits = []
-        for local_model in locals:
+        for l, local_model in enumerate(locals):
             self.dummy_model.load_state_dict(copy.deepcopy(local_model))
             ret = get_test_results(self.args, self.dummy_model, self.test_loader, self.criterion,
-                                   return_loss=False, return_acc=False, return_logit=True)
+                                   return_loss=False, return_acc=True, return_logit=True)
+            print(f"{l}th local ACC: {ret['acc']}")
             local_logits.append(ret['logits'])
         local_logits = np.dstack(local_logits)
         major_logits = []
-        ensemble_acc = 0
+        ensemble_acc_vote = 0
+        ensemble_acc_mean = 0
         for i in range(len(global_logits)):
-            # vote = np.argmax(local_logits[i], axis=0)
-            # major = np.argmax(np.bincount(vote))
-            # if major == self.true_test_target[i]:
-            #     ensemble_acc += 1
+            vote = np.argmax(local_logits[i], axis=0)
+            major = np.argmax(np.bincount(vote))
+            if major == self.true_test_target[i]:
+                ensemble_acc_vote += 1
             #
             # major_idx = np.where(vote == major)[0]
             # voted_logits = local_logits[i, :, major_idx]
@@ -220,20 +224,23 @@ class Server:
             mean_logits = np.mean(local_logits[i], axis=1)
             major = np.argmax(mean_logits)
             if major == self.true_test_target[i]:
-                ensemble_acc += 1
-            major_logits.append(mean_logits)
+                ensemble_acc_mean += 1
+            # major_logits.append(mean_logits)
 
-        major_logits = np.vstack(major_logits)
-        ensemble_acc = ensemble_acc / len(global_logits) * 100
+        ensemble_acc_vote = round(ensemble_acc_vote / len(global_logits) * 100, 2)
+        ensemble_acc_mean = round(ensemble_acc_mean / len(global_logits) * 100, 2)
 
         #KL(True||Est) = KL(Ensemble||Aggregate)
-        kl = compute_js_divergence(major_logits, global_logits)
+        # major_logits = np.vstack(major_logits)
+        # kl = compute_js_divergence(major_logits, global_logits)
+        kl = 0
 
         ret = {
             'loss': global_ret['loss'],
             'acc': global_ret['acc'],
             'kld': kl,
-            'ensemble_acc': ensemble_acc
+            'ensemble_acc': {'vote': ensemble_acc_vote,
+                             'mean': ensemble_acc_mean}
         }
         return ret
 
@@ -242,7 +249,7 @@ class Server:
 
         # Validation 데이터 불러오기
         self.valid_loader = DataLoader(dataset_valid, batch_size=100, shuffle=True)
-        self.test_loader = DataLoader(dataset_test, batch_size=100, shuffle=True)
+        self.test_loader = DataLoader(dataset_test, batch_size=100, shuffle=False)
 
         # 각 데이터 target에 대해서 bin count 프린
         aa = []
@@ -277,10 +284,15 @@ class Server:
         self.layers_name = np.sort(np.unique(self.layers_name))
 
     def make_opt(self):
-        self.server_optim = torch.optim.SGD(self.model.parameters(),
-                                            lr=self.args.lr,
-                                            momentum=self.args.momentum,
-                                            weight_decay=self.args.weight_decay)
+        if self.args.optimizer.lower() == str('SGD').lower():
+            self.server_optim = torch.optim.SGD(self.model.parameters(), lr=self.args.lr,
+                                                momentum=self.args.momentum,
+                                                weight_decay=self.args.weight_decay)
+        elif self.args.optimizer.lower() == str('ADAM').lower():
+            self.server_optim = torch.optim.Adam(self.model.parameters(), lr=self.args.lr,
+                                                 weight_decay=self.args.weight_decay)
+        else:
+            raise NotImplementedError
 
         if 'cosine' == self.args.scheduler:
             self.server_lr_scheduler = CosineAnnealingLR(self.server_optim,

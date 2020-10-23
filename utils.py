@@ -45,7 +45,7 @@ class Logger:
     def print_data(self, results):
         print(f"Train loss: {results.train_loss:.3f} "
               f"Test loss: {results.test_loss:.3f} | "
-              f"Acc: {results.test_acc:.3f}/{results.ensemble_acc:.3f} | "
+              f"Acc: {results.test_acc:.3f}/{results.ensemble_acc} | "
               f"Beta: {results.beta:.2f} | "
               # f"D(G2L): {results.d_g2l:.3f} | "
               # f"D(E2G): {results.d_e2g:.3f} | "
@@ -129,6 +129,7 @@ def read_argv():
     parser.add_argument('--nb_server_data', type=int)
     parser.add_argument('--iid', type=str)
     parser.add_argument('--data_hetero_alg', type=str)
+    parser.add_argument('--dir_alpha', type=float)
     parser.add_argument('--exp_name', type=str, default=None)
     additional_args = parser.parse_args()
 
@@ -157,6 +158,7 @@ def read_argv():
     args.nb_server_data = additional_args.nb_server_data if additional_args.nb_server_data is not None else args.nb_server_data
     args.iid = str2bool(additional_args.iid) if additional_args.iid is not None else args.iid
     args.data_hetero_alg = additional_args.data_hetero_alg if additional_args.data_hetero_alg is not None else args.data_hetero_alg
+    args.dir_alpha = additional_args.dir_alpha if additional_args.dir_alpha is not None else args.dir_alpha
 
     # learning settings
     args.lr = additional_args.lr if additional_args.lr is not None else args.lr

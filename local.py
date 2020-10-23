@@ -60,10 +60,12 @@ class Local:
                             t_logits = self.oracle(data)
                         else:
                             t_logits = self.round_global(data)
-                        
-                loss = self.criterion(output, target, t_logits, acc=local_acc, beta=beta)
+                try:
+                    loss = self.criterion(output, target, t_logits, acc=local_acc, beta=beta)
+                except:
+                    print("here")
                 
-                if self.args.global_loss_type != 'none':
+                if self.args.global_loss_type != 'none' and self.args.global_alpha != 0:
                     loss += (self.args.global_alpha * self.loss_to_round_global())
                 
                 # backward pass
@@ -83,6 +85,7 @@ class Local:
         }
 
         self.model.to(self.args.server_location)
+        print(ret)
         return ret
 
     def test(self):
@@ -109,10 +112,16 @@ class Local:
     def get_lr(self, server_lr):
         if server_lr < 0:
             raise RuntimeError("Less than 0")
-        self.optim = torch.optim.SGD(self.model.parameters(),
-                                     lr=server_lr,
-                                     momentum=self.args.momentum,
-                                     weight_decay=self.args.weight_decay)
+
+        if self.args.optimizer.lower() == str('SGD').lower():
+            self.optim = torch.optim.SGD(self.model.parameters(), lr=server_lr,
+                                         momentum=self.args.momentum,
+                                         weight_decay=self.args.weight_decay)
+        elif self.args.optimizer.lower() == str('ADAM').lower():
+            self.optim = torch.optim.Adam(self.model.parameters(), lr=server_lr,
+                                          weight_decay=self.args.weight_decay)
+        else:
+            raise NotImplementedError
         
     def upload_model(self):
         return copy.deepcopy(self.model.state_dict())
