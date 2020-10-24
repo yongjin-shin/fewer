@@ -133,6 +133,7 @@ def get_avg(data, xs, ys):
     raw = defaultdict(list)
     avg = defaultdict(dict)
     avg['loss'] = defaultdict(dict)
+    avg['acc'] = defaultdict(dict)
     cols = ys + xs
 
     for exp in data.keys():
@@ -144,7 +145,7 @@ def get_avg(data, xs, ys):
 
     for col in cols:
         raw_vec = np.array(raw[col])
-        if 'layer_var' == col:
+        if 'layer_var' == col or 'ensemble' in col:
             raw_vec = pd.DataFrame.from_dict(list(raw_vec.reshape(-1)))
         mean_vec = np.nanmean(raw_vec, axis=0)
         std_vec = np.nanstd(raw_vec, axis=0)
@@ -159,7 +160,10 @@ def get_avg(data, xs, ys):
                     avg['loss']['test'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
             elif 'acc' in col:
                 if 'ensemble' in col:
-                    avg['acc']['ensemble'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
+                    items = raw_vec.columns
+                    for _item in items:
+                        avg['acc'][col][_item] = raw_vec[_item].values
+                    # avg['acc']['ensemble'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
                 else:
                     avg['acc']['agg'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
             elif 'layer' in col:
@@ -174,12 +178,18 @@ def get_avg(data, xs, ys):
 
 def read_all(root, folders, args):
     # default_ys = ['train_loss', 'test_loss', 'test_acc', 'ensemble_acc', 'd_e2g', 'd_g2l', 'var', 'lr', 'cost']
-    default_ys = ['train_loss', 'test_loss', 'test_acc', 'd_e2g', 'd_g2l', 'layer_var', 'lr', 'cost', 'beta']
+    default_ys = ['train_loss', 'test_loss', 'test_acc', 'd_e2g', 'd_g2l', 'ensemble_acc', 'layer_var', 'lr', 'cost', 'beta']
     ys = []
     for _y in args.ys:
         for default_y in default_ys:
             if _y in default_y:
-                ys.append(default_y)
+                if default_y == 'ensemble_acc':
+                    if args.has_ensemble:
+                        ys.append(default_y)
+                    else:
+                        continue
+                else:
+                    ys.append(default_y)
 
     data = []
     for folder in folders:
@@ -231,11 +241,14 @@ def line_plot(args, x, y, y_type, label, color):
     elif 'acc' == y_type:
         if args.has_ensemble:
             y_hat = smoothing(args, y['agg']['mean'])
-            plt.plot(x['raw'], y_hat, label=label, lw=1, color=color, alpha=1)
+            plt.plot(x['raw'], y_hat, label=label, lw=1, color=color, alpha=0.5)
             plt.fill_between(x['raw'], y['agg']['lower'], y['agg']['upper'], color=color, alpha=0.2)
 
-            y_hat = smoothing(args, y['ensemble']['mean'])
-            plt.plot(x['raw'], y_hat, color=color, alpha=0.2, linestyle='--')
+            y_hat = smoothing(args, y['ensemble_acc']['vote'])
+            plt.plot(x['raw'], y_hat, label=f"{label}[En-vote]", color=color, alpha=1, linestyle='--')
+
+            y_hat = smoothing(args, y['ensemble_acc']['mean'])
+            plt.plot(x['raw'], y_hat, label=f"{label}[En-mean]", color=color, alpha=1, linestyle='dotted')
         else:
             y_hat = smoothing(args, y['agg']['mean'])
             plt.fill_between(x['raw'], y['agg']['lower'], y['agg']['upper'], color=color, alpha=0.2)
