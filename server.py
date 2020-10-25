@@ -78,13 +78,13 @@ class Server:
 
             # 저장된 N개의 Aggregated model은 validation set에서 성능을 비교함
             # beta에 따라 다른 모델들 중 가장 좋은 성능을 보인 모델을 찾아냄
-            valid_results, best_beta = self.valid(data_loader=self.valid_loader,
-                                                  logger=self.logger,
-                                                  exp_id=exp_id)
+            # valid_results, best_beta = self.valid(data_loader=self.valid_loader,
+            #                                       logger=self.logger,
+            #                                       exp_id=exp_id)
 
             # best score를 지닌 모델을 불러옴
             model = self.logger.load_model(exp_id=exp_id,
-                                           description=best_beta)
+                                           description=self.betas[-1])
 
             # global model로 업데이트를 시킨 이후에
             # Test를 진행함!
@@ -179,7 +179,7 @@ class Server:
         for beta in self.betas:
             model = logger.load_model(exp_id=exp_id, description=beta)
             self.load_model(model)
-            ret = get_test_results(self.args, self.model, data_loader, self.criterion,
+            ret = get_test_results(self.args, self.model, data_loader,
                                    return_loss=False, return_acc=True, return_logit=False)
             acc.append(ret['acc'])
         acc = np.array(acc)
@@ -190,65 +190,43 @@ class Server:
         return {'acc': best_score}, best_beta
 
     def test(self):
-        ret = get_test_results(self.args, self.model, self.test_loader, self.criterion,
-                               return_loss=True, return_acc=True, return_logit=False)
+        ret = get_test_results(self.args, self.model, self.test_loader,
+                               return_loss=False, return_acc=True, return_logit=False)
         return ret
 
     def test_agg_vs_ensemble(self, locals):
-        global_ret = get_test_results(self.args, self.model, self.test_loader, self.criterion,
-                                      return_loss=True, return_acc=True, return_logit=True)
-        global_logits = global_ret['logits']
+        global_ret = get_test_results(self.args, self.model, self.test_loader,
+                                      return_loss=True, return_acc=True, return_logit=True,
+                                      criterion=self.criterion)
 
-        local_logits = []
-        for l, local_model in enumerate(locals):
-            self.dummy_model.load_state_dict(copy.deepcopy(local_model))
-            ret = get_test_results(self.args, self.dummy_model, self.test_loader, self.criterion,
-                                   return_loss=False, return_acc=True, return_logit=True)
-            print(f"{l}th local ACC: {ret['acc']}")
-            local_logits.append(ret['logits'])
-        local_logits = np.dstack(local_logits)
-        major_logits = []
-        ensemble_acc_vote = 0
-        ensemble_acc_mean = 0
-        for i in range(len(global_logits)):
-            vote = np.argmax(local_logits[i], axis=0)
-            major = np.argmax(np.bincount(vote))
-            if major == self.true_test_target[i]:
-                ensemble_acc_vote += 1
-            #
-            # major_idx = np.where(vote == major)[0]
-            # voted_logits = local_logits[i, :, major_idx]
-            # mean_logits = np.mean(voted_logits, axis=0)
-            # major_logits.append(mean_logits)
+        print("Test Ensemble: ", end='')
+        ensemble_acc_mean, ensemble_acc_vote, _ = ensemble_calc(self.args, self.test_loader,
+                                                                self.dummy_model, locals)
 
-            mean_logits = np.mean(local_logits[i], axis=1)
-            major = np.argmax(mean_logits)
-            if major == self.true_test_target[i]:
-                ensemble_acc_mean += 1
-            # major_logits.append(mean_logits)
+        print("Valid Ensemble: ", end='')
+        _, _, mean_logits = ensemble_calc(self.args, self.valid_loader, self.dummy_model, locals)
 
-        ensemble_acc_vote = round(ensemble_acc_vote / len(global_logits) * 100, 2)
-        ensemble_acc_mean = round(ensemble_acc_mean / len(global_logits) * 100, 2)
-
-        #KL(True||Est) = KL(Ensemble||Aggregate)
-        # major_logits = np.vstack(major_logits)
-        # kl = compute_js_divergence(major_logits, global_logits)
-        kl = 0
+        self.model = knowledge_distillation(self.args, self.valid_loader, mean_logits, self.model)
+        global_kd_ret = get_test_results(self.args, self.model, self.test_loader,
+                                         return_loss=False, return_acc=True, return_logit=True)
 
         ret = {
             'loss': global_ret['loss'],
             'acc': global_ret['acc'],
-            'kld': kl,
+            'kld': 0,
             'ensemble_acc': {'vote': ensemble_acc_vote,
-                             'mean': ensemble_acc_mean}
+                             'mean': ensemble_acc_mean,
+                             'fedDF': global_kd_ret['acc']}
         }
+
+        print(ret)
         return ret
 
     def get_data(self, dataset_valid, dataset_locals, dataset_test):
         self.dataset_locals = dataset_locals
 
         # Validation 데이터 불러오기
-        self.valid_loader = DataLoader(dataset_valid, batch_size=100, shuffle=True)
+        self.valid_loader = DataLoader(dataset_valid, batch_size=100, shuffle=False)
         self.test_loader = DataLoader(dataset_test, batch_size=100, shuffle=False)
 
         # 각 데이터 target에 대해서 bin count 프린

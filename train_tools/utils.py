@@ -2,10 +2,11 @@ import torch, copy
 import numpy as np
 from scipy.special import softmax
 from .models import *
+from .criterion import *
 
 __all__ = ['create_nets', 'get_size', 'compute_kl_divergence', 'compute_js_divergence',
-           'get_test_results', 'get_server_location', 'get_device',
-           'get_variance']
+           'get_test_results', 'ensemble_calc', 'get_server_location', 'get_device',
+           'get_variance', 'knowledge_distillation']
 
 
 MODELS = {'mlp': MLP, 'deep_mlp': DeepMLP, 'testcnn': TestCNN,'mnistcnn': MnistCNN, 'cifarcnn': CifarCNN,
@@ -79,7 +80,7 @@ def compute_js_divergence(p_logits, q_logits):
     return float(np.mean(js, axis=0))
 
 
-def get_test_results(args, model, dataloader, criterion, return_loss, return_acc, return_logit):
+def get_test_results(args, model, dataloader, return_loss, return_acc, return_logit, criterion=None):
     ret = {}
     ret_logit, test_loss, correct, itr = [], 0, 0, 0
     len_data = 0
@@ -110,6 +111,105 @@ def get_test_results(args, model, dataloader, criterion, return_loss, return_acc
     if return_logit:
         ret['logits'] = np.concatenate(ret_logit)
 
+    return ret
+
+
+def knowledge_distillation(args, dataset, mean_logits, student):
+
+    kd_dataset = {
+        'mean_logits': torch.tensor(np.vstack(mean_logits), dtype=torch.float32, device=args.device),
+        'x': None,
+        'y': None
+    }
+
+    x_container, y_container = [], []
+    for x, y in dataset:
+        x_container.append(x)
+        y_container.append(y)
+
+    kd_dataset['x'] = torch.cat(x_container, dim=0)
+    kd_dataset['y'] = torch.cat(y_container)
+
+    idx = np.arange(0, len(kd_dataset['y']))
+    student.to(args.device)
+
+    optim = torch.optim.Adam(student.parameters(), lr=0.001)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=optim,
+                                                           T_max=args.fedDF_epoch,
+                                                           eta_min=1e-5,
+                                                           verbose=True)
+
+    for ep in range(args.fedDF_epoch):
+        block_idx = np.array_split(np.random.permutation(idx),
+                                   round(len(kd_dataset['y'])/128))
+        avg_loss, i = 0, 0
+        for enum, i in enumerate(block_idx):
+            t_logits = kd_dataset['mean_logits'][i]
+            output = student(kd_dataset['x'][i].to(dtype=torch.float32,
+                                                   device=args.device))
+
+            t_prob = torch.softmax(t_logits, dim=1)
+            s_prob = torch.softmax(output, dim=1)
+            loss = torch.nn.functional.kl_div(t_prob, s_prob, reduction='batchmean')
+
+            optim.zero_grad()
+            loss.backward()
+            avg_loss += loss.item()
+            optim.step()
+        student.to(args.device).eval()
+        training_results = get_test_results(args, student, dataset,
+                                            return_loss=False, return_acc=True, return_logit=False)
+        print(f"ep {ep}: {training_results}")
+        scheduler.step()
+
+    student.to(args.device).eval()
+    return student
+
+
+def ensemble_calc(args, data_loader, dummy_model, local_models):
+    true_target = get_true_targets(data_loader)
+    local_logits = []
+
+    for l, local_model in enumerate(local_models):
+        dummy_model.load_state_dict(copy.deepcopy(local_model))
+        ret = get_test_results(args, dummy_model, data_loader,
+                               return_loss=False, return_acc=True, return_logit=True)
+        print(f"{l}th local ACC: {ret['acc']}")
+        local_logits.append(ret['logits'])
+
+    local_logits = np.dstack(local_logits)
+    major_logits = []
+
+    ensemble_acc_vote = 0
+    ensemble_acc_mean = 0
+    for i in range(len(local_logits)):
+        vote = np.argmax(local_logits[i], axis=0)
+        major = np.argmax(np.bincount(vote))
+        if major == true_target[i]:
+            ensemble_acc_vote += 1
+        #
+        # major_idx = np.where(vote == major)[0]
+        # voted_logits = local_logits[i, :, major_idx]
+        # mean_logits = np.mean(voted_logits, axis=0)
+        # major_logits.append(mean_logits)
+
+        mean_logits = np.mean(local_logits[i], axis=1)
+        major = np.argmax(mean_logits)
+        major_logits.append(mean_logits)
+        if major == true_target[i]:
+            ensemble_acc_mean += 1
+
+    ensemble_acc_vote = round(ensemble_acc_vote / len(local_logits) * 100, 2)
+    ensemble_acc_mean = round(ensemble_acc_mean / len(local_logits) * 100, 2)
+    return ensemble_acc_mean, ensemble_acc_vote, major_logits
+
+
+def get_true_targets(data_loader):
+    ret = []
+    for x, y in data_loader:
+        ret.append(y)
+
+    ret = torch.cat(ret)
     return ret
 
 

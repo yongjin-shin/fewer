@@ -31,7 +31,7 @@ class Local:
         if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD'):
             self.keep_global()
             if self.args.use_beta_scheduler:
-                local_ret = get_test_results(self.args, self.round_global, self.data_loader, None,
+                local_ret = get_test_results(self.args, self.round_global, self.data_loader,
                                              return_loss=False, return_acc=True, return_logit=True)
                 local_acc = local_ret['acc']
 
@@ -90,8 +90,8 @@ class Local:
 
     def test(self):
         with torch.no_grad():
-            local_ret = get_test_results(self.args, self.model, self.data_loader, None,
-                                         return_loss=False, return_acc=True, return_logit=True)
+            local_ret = get_test_results(self.args, self.model, self.data_loader,
+                                         return_loss=False, return_acc=True, return_logit=False)
             local_acc = local_ret['acc']
             # global_ret = get_test_results(self.args, self.round_global, self.data_loader, None,
             #                               return_loss=False, return_acc=True, return_logit=True)

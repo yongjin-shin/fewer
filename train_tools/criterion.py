@@ -3,17 +3,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
-__all__ = ['OverhaulLoss']
+__all__ = ['OverhaulLoss', 'cross_entropy']
 
 
 class OverhaulLoss(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, mode=None, temp=None, smoothing=None, beta=None):
         super(OverhaulLoss, self).__init__()
         self.num_classes = args.num_classes
-        self.mode = args.mode
-        self.temp = args.temp
-        self.smoothing = args.smoothing
-        self.beta = args.beta
+        self.mode = args.mode if mode is None else mode
+        self.temp = args.temp if temp is None else temp
+        self.smoothing = args.smoothing if smoothing is None else smoothing
+        self.beta = args.beta if beta is None else beta
         self.args = args
 
     def beta_scheduler(self, acc):

@@ -34,6 +34,8 @@ momentum: 0.9
 weight_decay: 0.0000
 scheduler: 'constant'  # cosine | linear | constant | step
 
+# fedDF
+fedDF_epoch: 1000
 
 # dataset arguments
 dataset: 'cifar10' # mnist, fmnist, cifar10
