@@ -136,8 +136,7 @@ def knowledge_distillation(args, dataset, mean_logits, student):
     optim = torch.optim.Adam(student.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=optim,
                                                            T_max=args.fedDF_epoch,
-                                                           eta_min=1e-5,
-                                                           verbose=True)
+                                                           eta_min=1e-5)
 
     for ep in range(args.fedDF_epoch):
         block_idx = np.array_split(np.random.permutation(idx),
