@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import copy, gc, time
 import torch
 from torch.utils.data import DataLoader
@@ -96,6 +97,7 @@ class Server:
             layer_val = get_variance(self.layers_name, self.model.state_dict(),
                                      local_results['updated_locals'], self.args.server_location)
             print(layer_val)
+            print(local_results['norm'])
 
             end_time = time.time()
             ellapsed_time = end_time - start_time
@@ -103,7 +105,7 @@ class Server:
                                             0, self.tot_comm_cost,
                                             fed_round, exp_id, ellapsed_time,
                                             self.server_lr_scheduler.get_last_lr()[0],
-                                            best_beta, valid_results['acc'], layer_val))
+                                            best_beta, valid_results['acc'], layer_val, local_results['norm']))
             # np.mean(local_results['kld']), test_results['kld'], test_results['ensemble_acc']))
 
             gc.collect()
@@ -112,14 +114,15 @@ class Server:
         return self.container, self.model
 
     def clients_training(self, clients_dataset, beta):
-        updated_locals, train_acc, local_kld = [], [], []
+        updated_locals, train_acc, local_kld, local_norm = [], [], [], []
         train_loss, _cnt = 0, 0
         len_datasets = []
 
         for _cnt, dataset in enumerate(clients_dataset):
             # distribute local dataset
             self.locals.get_dataset(client_dataset=dataset)
-            self.locals.get_model(server_model=self.model.state_dict())
+            self.locals.get_model(server_model=self.model.state_dict(),
+                                  layers_name=self.layers_name)
             self.locals.get_lr(server_lr=self.server_lr_scheduler.get_last_lr()[0])
 
             # train local
@@ -128,6 +131,7 @@ class Server:
             train_loss += local_results['loss']
             train_acc.append(local_results['acc'])
             local_kld.append(local_results['kld'])
+            local_norm.append(local_results['norm'])
 
             # uploads local
             updated_locals.append(self.locals.upload_model())
@@ -145,7 +149,8 @@ class Server:
             'loss': train_loss,
             'kld': np.mean(local_kld),
             'len_datasets': len_datasets,
-            'updated_locals': updated_locals
+            'updated_locals': updated_locals,
+            'norm': dict(pd.DataFrame.from_dict(local_norm).mean().round(3))
         }
         return ret
 

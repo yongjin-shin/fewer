@@ -145,7 +145,7 @@ def get_avg(data, xs, ys):
 
     for col in cols:
         raw_vec = np.array(raw[col])
-        if 'layer_var' == col or 'ensemble' in col:
+        if 'layer_var' == col or 'ensemble' in col or 'layer_norm' == col:
             raw_vec = pd.DataFrame.from_dict(list(raw_vec.reshape(-1)))
         mean_vec = np.nanmean(raw_vec, axis=0)
         std_vec = np.nanstd(raw_vec, axis=0)
@@ -178,7 +178,7 @@ def get_avg(data, xs, ys):
 
 def read_all(root, folders, args):
     # default_ys = ['train_loss', 'test_loss', 'test_acc', 'ensemble_acc', 'd_e2g', 'd_g2l', 'var', 'lr', 'cost']
-    default_ys = ['train_loss', 'test_loss', 'test_acc', 'd_e2g', 'd_g2l', 'ensemble_acc', 'layer_var', 'lr', 'cost', 'beta']
+    default_ys = ['train_loss', 'test_loss', 'test_acc', 'd_e2g', 'd_g2l', 'ensemble_acc', 'layer_var', 'layer_norm', 'lr', 'cost', 'beta']
     ys = []
     for _y in args.ys:
         for default_y in default_ys:
@@ -269,7 +269,7 @@ def line_plot(args, x, y, y_type, label, color):
 def plot(args, x, y, data):
     fig = plt.figure(figsize=(8, 6))
     colors = cm.Set1
-    if not 'layer_var' == y:
+    if 'layer' not in y:
         for idx, d in enumerate(data):
             line_plot(args, x=d[x], y=d[y], y_type=y, label=args.legend[idx], color=colors(idx))
     else:

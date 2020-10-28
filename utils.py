@@ -9,7 +9,7 @@ __all__ = ['Results', 'Logger', 'read_argv', 'make_exp_name']
 
 tup = ['train_loss', 'test_loss', 'test_acc', 'sparsity',
        'cost', 'round', 'exp_id', 'ellapsed_time', 'lr',
-       'beta', 'ensemble_acc', 'layer_var']
+       'beta', 'ensemble_acc', 'layer_var', 'layer_norm']
 Results = namedtuple('Results', tup,)
 
 
@@ -132,6 +132,10 @@ def read_argv():
     parser.add_argument('--exp_name', type=str, default=None)
     parser.add_argument('--ratio_clients_per_round', type=float)
 
+    parser.add_argument('--slow_layer', nargs='+', default=None, type=int)
+    parser.add_argument('--slow_ratio', type=float)
+    parser.add_argument('--dir_alpha', type=float)
+
     additional_args = parser.parse_args()
 
     yaml_file = additional_args.config_file
@@ -142,6 +146,10 @@ def read_argv():
         args = yaml.load(stream=open(f"config/{yaml_file}", 'rt', encoding='utf8'), Loader=yaml.FullLoader)
 
     args = Namespace(**args)
+    # motivation settings
+    args.slow_layer = additional_args.slow_layer if additional_args.slow_layer is not None else args.slow_layer
+    args.slow_ratio = additional_args.slow_ratio if additional_args.slow_ratio is not None else args.slow_ratio
+
     # general settings
     args.model = additional_args.model if additional_args.model is not None else args.model
     args.device = additional_args.device if additional_args.device is not None else get_device(args)
@@ -160,6 +168,7 @@ def read_argv():
     args.nb_server_data = additional_args.nb_server_data if additional_args.nb_server_data is not None else args.nb_server_data
     args.iid = str2bool(additional_args.iid) if additional_args.iid is not None else args.iid
     args.data_hetero_alg = additional_args.data_hetero_alg if additional_args.data_hetero_alg is not None else args.data_hetero_alg
+    args.dir_alpha = additional_args.dir_alpha if additional_args.dir_alpha is not None else args.dir_alpha
 
     # learning settings
     args.lr = additional_args.lr if additional_args.lr is not None else args.lr

@@ -1,4 +1,5 @@
 import torch, copy, random
+import numpy as np
 from itertools import cycle
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
@@ -8,6 +9,22 @@ from train_tools.utils import get_test_results, compute_kl_divergence, compute_j
 
 
 __all__ = ['Local']
+
+
+# class Testobject:
+#     def __init__(self, layer_list):
+#         self.container = {}
+#         for layer in layer_list:
+#             self.container[layer] = []
+#
+#     def __call__(self, name, norm):
+#         print(name, norm)
+#         self.container[name].append(norm)
+#
+#     def __str__(self):
+#         return self.container
+# for n, p in self.model.named_parameters():
+#     p.register_hook(obj(n, torch.norm(p.grad)[0]))
 
 
 class Local:
@@ -22,6 +39,8 @@ class Local:
         self.optim, self.lr_scheduler = None, None
         self.criterion = OverhaulLoss(self.args)
         self.epochs = self.args.local_ep
+        self.layers_name = None
+        self.slow_list = None
 
     def train(self, beta=None):
         local_acc = None
@@ -36,11 +55,13 @@ class Local:
                 local_acc = local_ret['acc']
 
         t_logits = None
-        # fake_loader = self.sneaky_adversarial()
         fake_loader = cycle([(None, None)])
+        ret_norm = dict(zip(self.layers_name, [[] for _ in range(len(self.layers_name))]))
 
         train_loss, train_acc, itr, ep = 0, 0, 0, 0
         self.model.to(self.args.device)
+
+        # obj = Testobject(self.layers_name)
 
         for ep in range(self.epochs):
             for itr, ((data, target), (fake_data, fake_target)) in enumerate(zip(self.data_loader, fake_loader)):
@@ -64,29 +85,48 @@ class Local:
                 loss = self.criterion(output, target, t_logits, acc=local_acc, beta=beta)
                 # print(loss)
 
-                if self.args.global_loss_type != 'none':
+                if self.args.global_loss_type != 'none' and self.args.global_alpha > 0:
                     loss += (self.args.global_alpha * self.loss_to_round_global())
                 
                 # backward pass
                 self.optim.zero_grad()
                 loss.backward()
-
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10)
+                # torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10)
                 self.optim.step()
+                ret_norm = self.norm_info_stack(dict_params=dict(self.model.named_parameters()),
+                                                containers=ret_norm)
 
                 train_loss += loss.detach().item()
 
         local_loss = train_loss / (self.args.local_ep * (itr + 1))
         local_acc, kld = self.test()
 
+        for layer in self.layers_name:
+            ret_norm[layer] = np.mean(ret_norm[layer])
+
         ret = {
             'loss': local_loss,
             'acc' : local_acc,
-            'kld'  : kld
+            'kld'  : kld,
+            'norm' : ret_norm
         }
 
         self.model.to(self.args.server_location)
         return ret
+
+    def norm_info_stack(self, dict_params, containers):
+
+        for layer in self.layers_name:
+            _weight = dict_params[f"{layer}.weight"].grad.reshape((-1, 1))
+
+            if f"{layer}.bias" in dict_params.keys():
+                _bias = dict_params[f"{layer}.bias"].grad.reshape((-1, 1))
+                _weight = torch.cat((_weight, _bias))
+
+            _norm = torch.norm(_weight).item()
+            containers[layer].append(_norm)
+            # print(f"{layer}: {_norm}")
+        return containers
 
     def test(self):
         with torch.no_grad():
@@ -106,8 +146,9 @@ class Local:
         else:
             self.data_loader = DataLoader(client_dataset, batch_size=self.args.local_bs, shuffle=True)
             
-    def get_model(self, server_model):
+    def get_model(self, server_model, layers_name):
         self.model.load_state_dict(server_model)
+        self.layers_name = layers_name
 
         # for p in self.model.parameters():
         #     p.register_hook(lambda grad: torch.clamp(grad, -1, 1))
@@ -115,10 +156,31 @@ class Local:
     def get_lr(self, server_lr):
         if server_lr < 0:
             raise RuntimeError("Less than 0")
-        self.optim = torch.optim.SGD(self.model.parameters(),
-                                     lr=server_lr,
-                                     momentum=self.args.momentum,
-                                     weight_decay=self.args.weight_decay)
+
+        if self.args.slow_layer is None:
+            self.optim = torch.optim.SGD(self.model.parameters(),
+                                         lr=server_lr,
+                                         momentum=self.args.momentum,
+                                         weight_decay=self.args.weight_decay)
+
+        else:
+            self.slow_list = np.concatenate(
+                [[f"{self.layers_name[i]}.weight", f"{self.layers_name[i]}.bias"] for i in self.args.slow_layer])
+
+            slow_params = list(
+                map(lambda x: x[1], list(filter(lambda kv: kv[0] in self.slow_list, self.model.named_parameters()))))
+            base_params = list(
+                map(lambda x: x[1], list(filter(lambda kv: kv[0] not in self.slow_list, self.model.named_parameters()))))
+            # optimizer = SGD([{'params': base_params}, {'params': params, 'lr': '1e-4'}], lr=3e-6, momentum=0.9)
+
+            self.optim = torch.optim.SGD(
+                [{'params': base_params},
+                 {'params': slow_params, 'lr': server_lr * self.args.slow_ratio}],
+                lr=server_lr,
+                momentum=self.args.momentum,
+                weight_decay=self.args.weight_decay
+            )
+        return
         
     def upload_model(self):
         return copy.deepcopy(self.model.state_dict())
@@ -137,11 +199,18 @@ class Local:
     def loss_to_round_global(self):
         vec = []
         if self.args.global_loss_type == 'l2':
-            for i, (param1, param2) in enumerate(zip(self.model.parameters(), self.round_global.parameters())):
+            for i, ((name1, param1), (name2, param2)) in enumerate(zip(self.model.named_parameters(),
+                                                                       self.round_global.named_parameters())):
+                if name1 != name2:
+                    raise RuntimeError
+
                 if self.args.no_reg_to_recover:
                     raise NotImplemented
                 else:
-                    vec.append((param1-param2).view(-1, 1))
+                    if self.args.slow_layer is not None and name1 in self.slow_list:
+                        vec.append((param1 - param2).view(-1, 1))
+                    else:
+                        vec.append((param1-param2).view(-1, 1))
 
             all_vec = torch.cat(vec)
             loss = torch.norm(all_vec)  # (all_vec** 2).sum().sqrt()
