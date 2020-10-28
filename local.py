@@ -62,13 +62,16 @@ class Local:
                             t_logits = self.round_global(data)
                         
                 loss = self.criterion(output, target, t_logits, acc=local_acc, beta=beta)
-                
+                # print(loss)
+
                 if self.args.global_loss_type != 'none':
                     loss += (self.args.global_alpha * self.loss_to_round_global())
                 
                 # backward pass
                 self.optim.zero_grad()
                 loss.backward()
+
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10)
                 self.optim.step()
 
                 train_loss += loss.detach().item()
@@ -105,6 +108,9 @@ class Local:
             
     def get_model(self, server_model):
         self.model.load_state_dict(server_model)
+
+        # for p in self.model.parameters():
+        #     p.register_hook(lambda grad: torch.clamp(grad, -1, 1))
         
     def get_lr(self, server_lr):
         if server_lr < 0:

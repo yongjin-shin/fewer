@@ -144,8 +144,9 @@ def get_vec(order, vecs, device):
         weight = vecs[f'{k}.weight'].reshape((1, -1))
         serial_vec = torch.cat((serial_vec, weight), axis=-1)
 
-        bias = vecs[f'{k}.bias'].reshape((1, -1))
-        serial_vec = torch.cat((serial_vec, bias), axis=-1)
+        if f'{k}.bias' in vecs.keys():
+            bias = vecs[f'{k}.bias'].reshape((1, -1))
+            serial_vec = torch.cat((serial_vec, bias), axis=-1)
 
         ret[k] = serial_vec
     return ret

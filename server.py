@@ -124,6 +124,7 @@ class Server:
 
             # train local
             local_results = self.locals.train(beta=beta)
+            print(local_results)
             train_loss += local_results['loss']
             train_acc.append(local_results['acc'])
             local_kld.append(local_results['kld'])
@@ -266,15 +267,20 @@ class Server:
         self.dummy_model = dummy_model.to(self.args.server_location)
         self.init_cost = get_size(self.model.parameters())
 
-        params = [k for k in self.model.state_dict()]
-        self.layers_name = []
-        for layer in params:
-            split_name = layer.split('.')[0]
-            if 'weight' in split_name or 'bias' in split_name:
-                raise RuntimeError
+        # params = [k for k in self.model.state_dict()]
+        # self.layers_name = []
+        # for layer in params:
+        #     split_name = layer.split('.')[0]
+        #     if 'weight' in split_name or 'bias' in split_name:
+        #         raise RuntimeError
+        #
+        #     self.layers_name.append(split_name)
 
-            self.layers_name.append(split_name)
-        self.layers_name = np.sort(np.unique(self.layers_name))
+        self.layers_name = []
+        for name, layer in model.named_modules():
+            if isinstance(layer, torch.nn.Conv2d) or isinstance(layer, torch.nn.Linear):
+                self.layers_name.append(name)
+        self.layers_name = np.array(self.layers_name)
 
     def make_opt(self):
         self.server_optim = torch.optim.SGD(self.model.parameters(),

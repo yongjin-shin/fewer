@@ -130,6 +130,8 @@ def read_argv():
     parser.add_argument('--iid', type=str)
     parser.add_argument('--data_hetero_alg', type=str)
     parser.add_argument('--exp_name', type=str, default=None)
+    parser.add_argument('--ratio_clients_per_round', type=float)
+
     additional_args = parser.parse_args()
 
     yaml_file = additional_args.config_file
@@ -151,6 +153,7 @@ def read_argv():
     args.local_ep = additional_args.local_ep if additional_args.local_ep is not None else args.local_ep
     args.nb_exp_reps = additional_args.nb_exp_reps if additional_args.nb_exp_reps is not None else args.nb_exp_reps
     args.nb_rounds = additional_args.nb_rounds if additional_args.nb_rounds is not None else args.nb_rounds
+    args.ratio_clients_per_round = additional_args.ratio_clients_per_round if additional_args.ratio_clients_per_round is not None else args.ratio_clients_per_round
 
     # dataset settings
     args.dataset = additional_args.dataset if additional_args.dataset is not None else args.dataset
