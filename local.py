@@ -36,7 +36,8 @@ class Local:
                 local_acc = local_ret['acc']
 
         t_logits = None
-        fake_loader = self.sneaky_adversarial()
+        # fake_loader = self.sneaky_adversarial()
+        fake_loader = cycle([(None, None)])
 
         train_loss, train_acc, itr, ep = 0, 0, 0, 0
         self.model.to(self.args.device)

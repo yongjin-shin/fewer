@@ -8,9 +8,10 @@ from train_tools.utils import *
 __all__ = ['Results', 'Logger', 'read_argv', 'make_exp_name']
 
 
-Results = namedtuple('Results', ['train_loss', 'test_loss', 'test_acc', 'sparsity',
-                                 'cost', 'round', 'exp_id', 'ellapsed_time', 'lr',
-                                 'd_g2l', 'd_e2g', 'ensemble_acc'])
+tup = ['train_loss', 'test_loss', 'test_acc', 'sparsity',
+       'cost', 'round', 'exp_id', 'ellapsed_time', 'lr',
+       'beta', 'ensemble_acc', 'layer_var']
+Results = namedtuple('Results', tup,)
 
 
 class Logger:
@@ -31,9 +32,12 @@ class Logger:
             print("{}: {}".format(k, vars(args)[k]))
         print(f"\033[91mPath: {self.path}\033[00m")
 
-    def save_model(self, param, exp_id):
+    def save_model(self, param, exp_id, description='final'):
         Path(f"{self.path}/{exp_id}").mkdir(parents=True, exist_ok=True)
-        torch.save(param, f"{self.path}/{exp_id}/model.h5")
+        torch.save(param, f"{self.path}/{exp_id}/model_{str(description)}.h5")
+
+    def load_model(self, exp_id, description='final'):
+        return torch.load(f"{self.path}/{exp_id}/model_{str(description)}.h5")
 
     def get_results(self, results):
         self.print_data(results)
@@ -43,8 +47,9 @@ class Logger:
         print(f"Train loss: {results.train_loss:.3f} "
               f"Test loss: {results.test_loss:.3f} | "
               f"Acc: {results.test_acc:.3f}/{results.ensemble_acc:.3f} | "
-              f"D(G2L): {results.d_g2l:.3f} | "
-              f"D(E2G): {results.d_e2g:.3f} | "
+              f"Beta: {results.beta:.2f} | "
+              # f"D(G2L): {results.d_g2l:.3f} | "
+              # f"D(E2G): {results.d_e2g:.3f} | "
               f"Time: {results.ellapsed_time:.2f}s | "
               f"lr: {results.lr:.5f}"
               )
@@ -57,29 +62,26 @@ class Logger:
         if results.exp_id not in self.exp_results.keys():
             self.exp_results[results.exp_id] = self.make_basic_dict()
 
-        self.exp_results[results.exp_id]['round'].append(results.round)
-        self.exp_results[results.exp_id]['cost'].append(results.cost)
-        self.exp_results[results.exp_id]['train_loss'].append(results.train_loss)
-        self.exp_results[results.exp_id]['test_loss'].append(results.test_loss)
-        self.exp_results[results.exp_id]['test_acc'].append(results.test_acc)
-        self.exp_results[results.exp_id]['ensemble_acc'].append(results.ensemble_acc)
-        self.exp_results[results.exp_id]['sparsity'].append(results.sparsity)
-        self.exp_results[results.exp_id]['lr'].append(results.lr)
-        self.exp_results[results.exp_id]['d_e2g'].append(results.d_e2g)
-        self.exp_results[results.exp_id]['d_g2l'].append(results.d_g2l)
+        for _item in results._fields:
+            self.exp_results[results.exp_id][_item].append(getattr(results, _item))
+
+        # self.exp_results[results.exp_id]['round'].append(results.round)
+        # self.exp_results[results.exp_id]['cost'].append(results.cost)
+        # self.exp_results[results.exp_id]['train_loss'].append(results.train_loss)
+        # self.exp_results[results.exp_id]['test_loss'].append(results.test_loss)
+        # self.exp_results[results.exp_id]['test_acc'].append(results.test_acc)
+        # self.exp_results[results.exp_id]['ensemble_acc'].append(results.ensemble_acc)
+        # self.exp_results[results.exp_id]['sparsity'].append(results.sparsity)
+        # self.exp_results[results.exp_id]['lr'].append(results.lr)
+        # # self.exp_results[results.exp_id]['d_e2g'].append(results.d_e2g)
+        # # self.exp_results[results.exp_id]['d_g2l'].append(results.d_g2l)
+        # self.exp_results[results.exp_id]['beta'].append(results.beta)
 
     def make_basic_dict(self):
-        return {'round': [],
-                'cost': [],
-                'train_loss': [],
-                'test_loss': [],
-                'test_acc': [],
-                'ensemble_acc': [],
-                'd_e2g': [],
-                'd_g2l': [],
-                'sparsity': [],
-                'lr': [],
-                }
+        ret = {}
+        for _item in tup:
+            ret[_item] = []
+        return ret
 
     def save_yaml(self):
         f_name = f'{self.path}/exp_config.yaml'

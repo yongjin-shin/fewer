@@ -32,6 +32,7 @@ class Server:
         self.server_lr_scheduler = None
 
         # about model
+        self.layers_name = None
         self.model = None
         self.dummy_model = None
         self.init_cost = 0
@@ -54,7 +55,16 @@ class Server:
             clients_dataset = [self.dataset_locals[i] for i in sampled_devices]
             local_results = self.clients_training(clients_dataset=clients_dataset)
 
+            layer_val = get_variance(self.layers_name, self.model.state_dict(),
+                                     local_results['updated_locals'], self.args.server_location)
+            print(layer_val)
+
             self.aggregation_models(local_results['updated_locals'], local_results['len_datasets'])
+
+            layer_val = get_variance(self.layers_name, self.model.state_dict(),
+                                     local_results['updated_locals'], self.args.server_location)
+            print(layer_val)
+
             test_results = self.test()
             # test_results = self.test_agg_vs_ensemble(local_results['updated_locals'])
 
@@ -62,11 +72,17 @@ class Server:
 
             end_time = time.time()
             ellapsed_time = end_time - start_time
+
+            # tup = ['train_loss', 'test_loss', 'test_acc',
+            #        'sparsity', 'cost',
+            #        'round', 'exp_id', 'ellapsed_time',
+            #        'lr',
+            #        'beta', 'ensemble_acc', 'layer_var']
             self.logger.get_results(Results(local_results['loss'], test_results['loss'], test_results['acc'],
                                             0, self.tot_comm_cost,
                                             fed_round, exp_id, ellapsed_time,
                                             self.server_lr_scheduler.get_last_lr()[0],
-                                            0, 0, 0))
+                                            0, 0, layer_val))
             # np.mean(local_results['kld']), test_results['kld'], test_results['ensemble_acc']))
 
             gc.collect()
@@ -179,6 +195,12 @@ class Server:
         self.model = model.to(self.args.server_location)
         self.dummy_model = dummy_model.to(self.args.server_location)
         self.init_cost = get_size(self.model.parameters())
+
+        self.layers_name = []
+        for name, layer in model.named_modules():
+            if isinstance(layer, torch.nn.Conv2d) or isinstance(layer, torch.nn.Linear):
+                self.layers_name.append(name)
+        self.layers_name = np.array(self.layers_name)
 
     def make_opt(self):
         self.server_optim = torch.optim.SGD(self.model.parameters(),

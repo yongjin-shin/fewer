@@ -4,23 +4,23 @@ from scipy.special import softmax
 from .models import *
 
 __all__ = ['create_nets', 'get_size', 'compute_kl_divergence', 'compute_js_divergence',
-           'get_test_results', 'get_server_location', 'get_device', 'get_models_variance']
+           'get_test_results', 'get_server_location', 'get_device',
+           'get_variance']
 
-
-MODELS = {'mlp': MLP, 'deep_mlp': DeepMLP, 'testcnn': TestCNN,'mnistcnn': MnistCNN, 'cifarcnn': CifarCNN,
+MODELS = {'mlp': MLP, 'deep_mlp': DeepMLP, 'testcnn': TestCNN, 'mnistcnn': MnistCNN, 'cifarcnn': CifarCNN,
           'vgg11': vgg11, 'vgg11_slim': vgg11_slim, 'res8': resnet8, 'res14': resnet14, 'res20': resnet20}
 
 
 def create_nets(args, location, num_classes=10):
     print(f"{location}: ", end="", flush=True)
-    
+
     if 'mnist' in args.dataset:
         dim_in = 1
-        img_size = 1*28*28
-        
+        img_size = 1 * 28 * 28
+
     elif 'cifar' in args.dataset:
         dim_in = 3
-        img_size = 3*32*32
+        img_size = 3 * 32 * 32
     else:
         raise NotImplementedError
 
@@ -39,22 +39,22 @@ def get_size(param):
         tmp = p.detach().to('cpu').numpy()
         size += tmp.nbytes
 
-    return round(size/1024/1024, 2)
+    return round(size / 1024 / 1024, 2)
 
 
 def get_server_location(args):
     location = args.device if args.gpu else 'cpu'
-    
+
     return location
 
 
 def get_device(args):
     if args.gpu:
         device = 'cuda:1' if args.cuda_type else 'cuda:0'
-        
+
     else:
         device = 'cpu'
-        
+
     return device
 
 
@@ -136,9 +136,18 @@ def calc_var(server, local):
 
 
 def get_vec(order, vecs, device):
-    ret = torch.empty((0, 1)).to(device)
+    ret = {}
     for k in order:
-        ret = torch.cat((ret, vecs[k].reshape((-1, 1))), axis=0)
+        serial_vec = torch.empty((1, 0)).to(device)
+
+        weight = vecs[f'{k}.weight'].reshape((1, -1))
+        serial_vec = torch.cat((serial_vec, weight), axis=-1)
+
+        if f'{k}.bias' in vecs.keys():
+            bias = vecs[f'{k}.bias'].reshape((1, -1))
+            serial_vec = torch.cat((serial_vec, bias), axis=-1)
+
+        ret[k] = serial_vec
     return ret
 
 
@@ -146,13 +155,12 @@ def get_local_vec(order, locals, device):
     ret = []
     for local in locals:
         ret.append(get_vec(order, local, device))
-    return torch.cat(ret, dim=1)
+    return ret
 
 
-def get_variance(server, locals, device):
+def get_variance(calc_order, server_state_dict, locals, device):
     _vars = []
-    calc_order = [k for k in server]
-    server_vecs = get_vec(calc_order, server, device)
+    server_vecs = get_vec(calc_order, server_state_dict, device)
     local_vecs = get_local_vec(calc_order, locals, device)
 
     # server_norm = torch.norm(server_vecs)
@@ -161,12 +169,18 @@ def get_variance(server, locals, device):
     # inner_prod = server_vecs.T @ local_vecs
     # normalizer = server_norm * local_norms
     # ret = torch.var(inner_prod / normalizer)
-    cos = torch.nn.CosineSimilarity(dim=0)
-    ret = torch.log(torch.var(cos(server_vecs.repeat(1, local_vecs.shape[-1]),
-                                  local_vecs)))
-
-    return ret.item()
-
-
-def get_models_variance(server, locals, device):
-    return get_variance(server, locals, device)
+    cos = torch.nn.CosineSimilarity(dim=1)
+    # ret = torch.log(torch.var(cos(server_vecs.repeat(1, local_vecs.shape[-1]),
+    #                               local_vecs)))
+    ret_cos = {}
+    for layer in calc_order:
+        val_cos = torch.tensor([0], dtype=torch.float, device=device)
+        for i, local_vec in enumerate(local_vecs):
+            local_cos = torch.clamp(cos(server_vecs[layer], local_vec[layer]),
+                                    max=1,
+                                    min=-1)
+            # print(f"{layer}/{i}: {local_cos}")
+            val_cos += torch.abs(torch.acos(local_cos))
+        val_cos /= len(local_vecs)
+        ret_cos[layer] = round(val_cos.item(), 3)
+    return ret_cos

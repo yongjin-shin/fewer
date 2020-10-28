@@ -26,11 +26,11 @@ no_reg_to_recover: False
 model: 'cifarcnn' #mlp, deep_mlp, mnistcnn, cifarcnn, vgg, res
 hidden: 256
 loss_func: 'CrossEntropy'
-lr: 0.03
+lr: 0.01
 optimizer: 'sgd'  # 'sgd'
 momentum: 0.9
 weight_decay: 0.0000
-scheduler: 'linear'  # cosine | linear | constant | step
+scheduler: 'constant'  # cosine | linear | constant | step
 
 
 # dataset arguments
