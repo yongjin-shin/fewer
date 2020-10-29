@@ -4,7 +4,7 @@ from scipy.special import softmax
 from .models import *
 
 __all__ = ['create_nets', 'get_size', 'compute_kl_divergence', 'compute_js_divergence',
-           'get_test_results', 'get_server_location', 'get_device',
+           'get_test_results', 'get_server_location', 'get_device', 'calc_l2_norm',
            'get_variance']
 
 
@@ -185,4 +185,13 @@ def get_variance(calc_order, server_state_dict, locals, device):
         val_cos /= len(local_vecs)
         ret_cos[layer] = round(val_cos.item(), 3)
     return ret_cos
+
+
+def calc_l2_norm(order, state_dict, device):
+    ret = get_vec(order, state_dict, device)
+
+    for k in ret.keys():
+        ret[k] = torch.norm(ret[k]).item()
+
+    return ret
 

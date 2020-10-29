@@ -37,6 +37,8 @@ scheduler: 'constant'  # cosine | linear | constant | step
 # motivation exp
 slow_layer:
 slow_ratio: 0.01
+fast_layer:
+fast_ratio: 2
 
 # dataset arguments
 dataset: 'cifar10' # mnist, fmnist, cifar10

@@ -97,7 +97,8 @@ class Server:
             layer_val = get_variance(self.layers_name, self.model.state_dict(),
                                      local_results['updated_locals'], self.args.server_location)
             print(layer_val)
-            print(local_results['norm'])
+            print(local_results['grad_norm'])
+            print(local_results['weight_norm'])
 
             end_time = time.time()
             ellapsed_time = end_time - start_time
@@ -105,7 +106,8 @@ class Server:
                                             0, self.tot_comm_cost,
                                             fed_round, exp_id, ellapsed_time,
                                             self.server_lr_scheduler.get_last_lr()[0],
-                                            best_beta, valid_results['acc'], layer_val, local_results['norm']))
+                                            best_beta, valid_results['acc'], layer_val,
+                                            local_results['grad_norm'], local_results['weight_norm']))
             # np.mean(local_results['kld']), test_results['kld'], test_results['ensemble_acc']))
 
             gc.collect()
@@ -114,7 +116,7 @@ class Server:
         return self.container, self.model
 
     def clients_training(self, clients_dataset, beta):
-        updated_locals, train_acc, local_kld, local_norm = [], [], [], []
+        updated_locals, train_acc, local_kld, local_grad_norm, local_weight_norm = [], [], [], [], []
         train_loss, _cnt = 0, 0
         len_datasets = []
 
@@ -131,11 +133,13 @@ class Server:
             train_loss += local_results['loss']
             train_acc.append(local_results['acc'])
             local_kld.append(local_results['kld'])
-            local_norm.append(local_results['norm'])
+            local_grad_norm.append(local_results['norm'])
 
             # uploads local
             updated_locals.append(self.locals.upload_model())
             len_datasets.append(dataset.__len__())
+            local_weight_norm.append(calc_l2_norm(self.layers_name, updated_locals[-1],
+                                                  self.args.server_location))
             
             # reset local model
             self.locals.reset()
@@ -150,7 +154,8 @@ class Server:
             'kld': np.mean(local_kld),
             'len_datasets': len_datasets,
             'updated_locals': updated_locals,
-            'norm': dict(pd.DataFrame.from_dict(local_norm).mean().round(3))
+            'grad_norm': dict(pd.DataFrame.from_dict(local_grad_norm).mean().round(3)),
+            'weight_norm': dict(pd.DataFrame.from_dict(local_weight_norm).mean().round(3))
         }
         return ret
 

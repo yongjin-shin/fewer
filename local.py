@@ -41,6 +41,7 @@ class Local:
         self.epochs = self.args.local_ep
         self.layers_name = None
         self.slow_list = None
+        self.fast_list = None
 
     def train(self, beta=None):
         local_acc = None
@@ -157,13 +158,13 @@ class Local:
         if server_lr < 0:
             raise RuntimeError("Less than 0")
 
-        if self.args.slow_layer is None:
+        if self.args.slow_layer is None and self.args.fast_layer is None:
             self.optim = torch.optim.SGD(self.model.parameters(),
                                          lr=server_lr,
                                          momentum=self.args.momentum,
                                          weight_decay=self.args.weight_decay)
 
-        else:
+        if self.args.slow_layer is not None:
             self.slow_list = np.concatenate(
                 [[f"{self.layers_name[i]}.weight", f"{self.layers_name[i]}.bias"] for i in self.args.slow_layer])
 
@@ -171,7 +172,6 @@ class Local:
                 map(lambda x: x[1], list(filter(lambda kv: kv[0] in self.slow_list, self.model.named_parameters()))))
             base_params = list(
                 map(lambda x: x[1], list(filter(lambda kv: kv[0] not in self.slow_list, self.model.named_parameters()))))
-            # optimizer = SGD([{'params': base_params}, {'params': params, 'lr': '1e-4'}], lr=3e-6, momentum=0.9)
 
             self.optim = torch.optim.SGD(
                 [{'params': base_params},
@@ -180,6 +180,25 @@ class Local:
                 momentum=self.args.momentum,
                 weight_decay=self.args.weight_decay
             )
+
+        if self.args.fast_layer is not None:
+            self.fast_list = np.concatenate(
+                [[f"{self.layers_name[i]}.weight", f"{self.layers_name[i]}.bias"] for i in self.args.fast_layer])
+
+            fast_params = list(
+                map(lambda x: x[1], list(filter(lambda kv: kv[0] in self.slow_list, self.model.named_parameters()))))
+            base_params = list(
+                map(lambda x: x[1],
+                    list(filter(lambda kv: kv[0] not in self.slow_list, self.model.named_parameters()))))
+
+            self.optim = torch.optim.SGD(
+                [{'params': base_params},
+                 {'params': fast_params, 'lr': server_lr * self.args.fast_ratio}],
+                lr=server_lr,
+                momentum=self.args.momentum,
+                weight_decay=self.args.weight_decay
+            )
+
         return
         
     def upload_model(self):
@@ -187,9 +206,11 @@ class Local:
     
     def reset(self):
         self.data_loader = None
-        self.optim = None
         self.lr_scheduler = None
         self.round_global = None
+        self.slow_list = None
+        self.fast_list = None
+        self.optim = None
 
     def keep_global(self):
         self.round_global = copy.deepcopy(self.model)

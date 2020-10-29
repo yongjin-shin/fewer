@@ -9,7 +9,7 @@ __all__ = ['Results', 'Logger', 'read_argv', 'make_exp_name']
 
 tup = ['train_loss', 'test_loss', 'test_acc', 'sparsity',
        'cost', 'round', 'exp_id', 'ellapsed_time', 'lr',
-       'beta', 'ensemble_acc', 'layer_var', 'layer_norm']
+       'beta', 'ensemble_acc', 'layer_var', 'layer_grad_norm', 'layer_weigh_norm']
 Results = namedtuple('Results', tup,)
 
 
@@ -134,6 +134,8 @@ def read_argv():
 
     parser.add_argument('--slow_layer', nargs='+', default=None, type=int)
     parser.add_argument('--slow_ratio', type=float)
+    parser.add_argument('--fast_layer', nargs='+', default=None, type=int)
+    parser.add_argument('--fast_ratio', type=float)
     parser.add_argument('--dir_alpha', type=float)
 
     additional_args = parser.parse_args()
@@ -146,9 +148,6 @@ def read_argv():
         args = yaml.load(stream=open(f"config/{yaml_file}", 'rt', encoding='utf8'), Loader=yaml.FullLoader)
 
     args = Namespace(**args)
-    # motivation settings
-    args.slow_layer = additional_args.slow_layer if additional_args.slow_layer is not None else args.slow_layer
-    args.slow_ratio = additional_args.slow_ratio if additional_args.slow_ratio is not None else args.slow_ratio
 
     # general settings
     args.model = additional_args.model if additional_args.model is not None else args.model
@@ -174,7 +173,13 @@ def read_argv():
     args.lr = additional_args.lr if additional_args.lr is not None else args.lr
     args.scheduler = additional_args.scheduler if additional_args.scheduler is not None else args.scheduler
     args.weight_decay = additional_args.weight_decay if additional_args.weight_decay is not None else args.weight_decay
-    
+
+    # motivation settings
+    args.slow_layer = additional_args.slow_layer if additional_args.slow_layer is not None else args.slow_layer
+    args.slow_ratio = additional_args.slow_ratio if additional_args.slow_ratio is not None else args.slow_ratio
+    args.fast_layer = additional_args.fast_layer if additional_args.fast_layer is not None else args.fast_layer
+    args.fast_ratio = additional_args.fast_ratio if additional_args.fast_ratio is not None else args.fast_ratio
+
     # distill settings
     args.mode = additional_args.mode if additional_args.mode is not None else args.mode
     args.smoothing = additional_args.smoothing if additional_args.smoothing is not None else args.smoothing

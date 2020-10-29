@@ -145,8 +145,9 @@ def get_avg(data, xs, ys):
 
     for col in cols:
         raw_vec = np.array(raw[col])
-        if 'layer_var' == col or 'ensemble' in col or 'layer_norm' == col:
+        if 'layer_' in col or 'ensemble' in col:
             raw_vec = pd.DataFrame.from_dict(list(raw_vec.reshape(-1)))
+
         mean_vec = np.nanmean(raw_vec, axis=0)
         std_vec = np.nanstd(raw_vec, axis=0)
 
@@ -166,7 +167,7 @@ def get_avg(data, xs, ys):
                     # avg['acc']['ensemble'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
                 else:
                     avg['acc']['agg'] = {'mean': mean_vec, 'upper': mean_vec + std_vec, 'lower': mean_vec - std_vec}
-            elif 'layer' in col:
+            elif 'layer_' in col:
                 items = raw_vec.columns
                 for _item in items:
                     avg[col][_item] = raw_vec[_item].values
@@ -178,7 +179,8 @@ def get_avg(data, xs, ys):
 
 def read_all(root, folders, args):
     # default_ys = ['train_loss', 'test_loss', 'test_acc', 'ensemble_acc', 'd_e2g', 'd_g2l', 'var', 'lr', 'cost']
-    default_ys = ['train_loss', 'test_loss', 'test_acc', 'd_e2g', 'd_g2l', 'ensemble_acc', 'layer_var', 'layer_norm', 'lr', 'cost', 'beta']
+    default_ys = ['train_loss', 'test_loss', 'test_acc', 'd_e2g', 'd_g2l', 'ensemble_acc', 'layer_var',
+                  'layer_weigh_norm', 'layer_grad_norm', 'lr', 'cost', 'beta']
     ys = []
     for _y in args.ys:
         for default_y in default_ys:
@@ -276,15 +278,17 @@ def plot(args, x, y, data):
         for idx, d in enumerate(data):
             for j, k in enumerate(d[y].keys()):
                 if 'prox' in args.legend[idx]:
-                    liner = 'dotted'
+                    liner = None  # 'dotted'
+                    alp = None  # 0.5
                 elif 'CE' in args.legend[idx]:
-                    liner = 'dashed'
+                    liner = None  # 'dashed'
+                    alp = None  # 0.5
                 else:
                     liner = None
+                    alp = None
 
                 plt.plot(d[x]['raw'], d[y][k], label=f"{args.legend[idx]}_{k}", color=colors(j),
-                         linestyle=liner,
-                         alpha=0.5 if 'KD' not in args.legend[idx] else None)
+                         linestyle=liner, alpha=alp)
 
     plt.xlabel('Round', fontsize=20) if 'round' in x else plt.xlabel('Cost', fontsize=20)
     if 'acc' in y:
@@ -302,6 +306,12 @@ def plot(args, x, y, data):
     elif 'layer_var' in y:
         plt.ylabel('Cosine Distance', fontsize=20)
         plt.ylim(args.ylim['dist'][0], args.ylim['dist'][1]) if args.ylim is not None else None
+    elif 'layer_grad_norm' in y:
+        plt.ylabel('L2(grad)', fontsize=20)
+        plt.ylim(args.ylim['grad_norm'][0], args.ylim['grad_norm'][1]) if args.ylim is not None else None
+    elif 'layer_weigh_norm' in y:
+        plt.ylabel('L2(weight)', fontsize=20)
+        plt.ylim(args.ylim['weight_norm'][0], args.ylim['weight_norm'][1]) if args.ylim is not None else None
     else:
         plt.ylabel(y, fontsize=20)
 
@@ -330,7 +340,9 @@ if __name__ == '__main__':
     parser.add_argument('--ys', default=['loss', 'acc'], nargs='+', type=str)
     parser.add_argument('--ylim_acc', default=[0, 80], nargs='+', type=int)
     parser.add_argument('--ylim_loss', default=[0, 2], nargs='+', type=int)
-    parser.add_argument('--ylim_dist', default=[0, 1], nargs='+', type=float)
+    parser.add_argument('--ylim_dist', default=[0, 0.5], nargs='+', type=float)
+    parser.add_argument('--ylim_grad_norm', default=[0, 4.2], nargs='+', type=float)
+    parser.add_argument('--ylim_weight_norm', default=[0, 30], nargs='+', type=float)
     parser.add_argument('--ylim', default=None, type=int)
     parser.add_argument('--exp_name', default=False, nargs='+')
     parser.add_argument('--legend', nargs='+')
@@ -358,5 +370,6 @@ if __name__ == '__main__':
     if 'cost' in args.xs:
         args.xlim = None
 
-    args.ylim = {'acc': args.ylim_acc, 'loss': args.ylim_loss, 'dist': args.ylim_dist}
+    args.ylim = {'acc': args.ylim_acc, 'loss': args.ylim_loss, 'dist': args.ylim_dist,
+                 'grad_norm': args.ylim_grad_norm, 'weight_norm': args.ylim_weight_norm}
     main(args)
