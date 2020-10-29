@@ -186,10 +186,10 @@ class Local:
                 [[f"{self.layers_name[i]}.weight", f"{self.layers_name[i]}.bias"] for i in self.args.fast_layer])
 
             fast_params = list(
-                map(lambda x: x[1], list(filter(lambda kv: kv[0] in self.slow_list, self.model.named_parameters()))))
+                map(lambda x: x[1], list(filter(lambda kv: kv[0] in self.fast_list, self.model.named_parameters()))))
             base_params = list(
                 map(lambda x: x[1],
-                    list(filter(lambda kv: kv[0] not in self.slow_list, self.model.named_parameters()))))
+                    list(filter(lambda kv: kv[0] not in self.fast_list, self.model.named_parameters()))))
 
             self.optim = torch.optim.SGD(
                 [{'params': base_params},
