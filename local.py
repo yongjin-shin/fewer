@@ -75,15 +75,15 @@ class Local:
                     idx = torch.randperm(len(y))
                     data, target = x[idx], y[idx]
 
-                output = self.model(data)
+                output, features = self.model(data, get_features=True)
                 if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD') or ('Distill' in self.args.mode):
                     with torch.no_grad():
                         if self.args.oracle:
-                            t_logits = self.oracle(data)
+                            t_logits, t_features = self.oracle(data, get_features=True)
                         else:
-                            t_logits = self.round_global(data)
+                            t_logits, t_features = self.round_global(data, get_features=True)
                         
-                loss = self.criterion(output, target, t_logits, acc=local_acc, beta=beta)
+                loss = self.criterion(output, target, t_logits, features, t_features, acc=local_acc, beta=beta)
                 # print(loss)
 
                 if self.args.global_loss_type != 'none' and self.args.global_alpha > 0:

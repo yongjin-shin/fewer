@@ -25,7 +25,7 @@ class OverhaulLoss(nn.Module):
             raise NotImplemented
         return y
 
-    def forward(self, outputs, target, t_logits=None, acc=None, beta=None):
+    def forward(self, outputs, target, t_logits=None, features=None, t_features=None, acc=None, beta=None):
         logits = outputs
         loss = torch.zeros(logits.size(0)).to(str(target.device)) # initialize loss
 
@@ -96,7 +96,18 @@ class OverhaulLoss(nn.Module):
             
             kd_loss = kd_loss.mean(dim=1)
             loss += ce_loss + kd_loss
-        
+            
+        elif self.mode == 'RepDistill_l2':
+            ce_loss = cross_entropy(logits, target)
+            rep_loss = F.mse_loss(features, t_features)
+            loss = ce_loss + self.beta * rep_loss
+            
+        #elif self.mode == 'RepDistill_cosine':
+        #    ce_loss = cross_entropy(logits, target)
+        #    rep_loss = F.mse_loss(features, t_features)
+        #    loss = ce_loss + self.beta * rep_loss
+            
+            
         loss = loss.mean()  # Average Batch Loss
 
         return loss

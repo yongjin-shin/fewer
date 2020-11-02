@@ -178,15 +178,18 @@ class ResNet(nn.Module):
         
         return x, features
         
-    def forward(self, x):
+    def forward(self, x, get_features=False):
         x = self.conv_stem(x)
         
         x = self.block_layers(x)
 
         x, features = self.pool_linear(x)
 
-        return x
-    
+        if get_features:
+            return x, features
+        
+        else:
+            return x
     
 def _resnet(arch, repeats, **kwargs):
     model = ResNet(arch, repeats, **kwargs)
