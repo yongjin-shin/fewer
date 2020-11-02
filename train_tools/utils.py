@@ -10,8 +10,7 @@ __all__ = ['create_nets', 'get_size', 'compute_kl_divergence', 'compute_js_diver
 
 MODELS = {'mlp': MLP, 'deep_mlp': DeepMLP, 'testcnn': TestCNN,'mnistcnn': MnistCNN, 'cifarcnn': CifarCNN,
           'vgg11': vgg11, 'vgg11_slim': vgg11_slim, 'res8': resnet8, 'res14': resnet14, 'res20': resnet20,
-          'exp0': ExpNet0, 'exp1': ExpNet1, 'exp2': ExpNet2, 'exp3': ExpNet3 
-         }
+          'exp0': ExpNet0, 'exp1': ExpNet1, 'exp2': ExpNet2, 'exp3': ExpNet3, 'exp4': ExpNet4, 'exp5': ExpNet5}
 
 
 def create_nets(args, location, num_classes=10):

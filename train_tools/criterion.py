@@ -74,7 +74,29 @@ class OverhaulLoss(nn.Module):
                 new_target = ((1-self.smoothing) * hard_target) + (self.smoothing * t_distill)
 
             loss += cross_entropy(logits, new_target, reduction='none')
+        
+        
+        elif self.mode == 'MseDistill':
+            ce_loss = cross_entropy(logits, target, reduction='none')
+            kd_loss = F.mse_loss(logits, t_logits, reduction='none')
+            kd_loss = kd_loss.mean(dim=1)
+            loss += ce_loss + kd_loss
             
+        elif self.mode == 'MseDistill_nt':
+            b = t_logits.shape[0]
+            with torch.no_grad():
+                nt_idx = torch.ones(t_logits.shape)
+                nt_idx[range(b), target] = False
+                nt_idx = nt_idx.bool()
+                
+            ce_loss = cross_entropy(logits, target, reduction='none')
+            kd_loss = F.mse_loss(logits[nt_idx].view(b, self.num_classes-1), 
+                                 t_logits[nt_idx].view(b, self.num_classes-1), 
+                                 reduction='none')
+            
+            kd_loss = kd_loss.mean(dim=1)
+            loss += ce_loss + kd_loss
+        
         loss = loss.mean()  # Average Batch Loss
 
         return loss

@@ -48,7 +48,7 @@ class Local:
         if self.args.global_loss_type != 'none':
             self.keep_global()
             
-        if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD'):
+        if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD') or ('Distill' in self.args.mode):
             self.keep_global()
             if self.args.use_beta_scheduler:
                 local_ret = get_test_results(self.args, self.round_global, self.data_loader, None,
@@ -76,7 +76,7 @@ class Local:
                     data, target = x[idx], y[idx]
 
                 output = self.model(data)
-                if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD'):
+                if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD') or ('Distill' in self.args.mode):
                     with torch.no_grad():
                         if self.args.oracle:
                             t_logits = self.oracle(data)
