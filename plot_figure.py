@@ -270,7 +270,7 @@ def line_plot(args, x, y, y_type, label, color):
 
 def plot(args, x, y, data):
     fig = plt.figure(figsize=(8, 6))
-    colors = cm.Set1
+    colors = cm.tab20
     if 'layer' not in y:
         for idx, d in enumerate(data):
             line_plot(args, x=d[x], y=d[y], y_type=y, label=args.legend[idx], color=colors(idx))
