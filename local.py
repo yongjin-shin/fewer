@@ -55,7 +55,7 @@ class Local:
                                              return_loss=False, return_acc=True, return_logit=True)
                 local_acc = local_ret['acc']
 
-        t_logits = None
+        t_logits, t_features = None, None
         fake_loader = cycle([(None, None)])
         ret_norm = dict(zip(self.layers_name, [[] for _ in range(len(self.layers_name))]))
 

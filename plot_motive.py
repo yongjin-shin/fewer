@@ -17,24 +17,28 @@ for i in range(5):
     for j in df.columns.values:
         lr = lrs[j]
         if lr % 1:
-            path = f'./log/[cifarcnn-cifar10]real_ce_lp05_layer{int(i)}_lr{lr}'
+            path = f'./log/[cifarcnn-cifar10]linear_ce_lp20_layer{int(i)}_lr{lr}'
         else:
-            path = f'./log/[cifarcnn-cifar10]real_ce_lp05_layer{int(i)}_lr{int(lr)}'
+            path = f'./log/[cifarcnn-cifar10]linear_ce_lp20_layer{int(i)}_lr{int(lr)}'
 
-        with open(f'{path}/results.json') as f:
-            d = json.load(f)
-            # max_acc = np.max(d['0']['test_acc'])
-            max_acc = np.mean(d['0']['test_acc'][-3:])
-            df.loc[df.index.values[i], j] = max_acc
-
+        try:
+            with open(f'{path}/results.json') as f:
+                d = json.load(f)
+                # max_acc = np.max(d['0']['test_acc'])
+                max_acc = np.mean(d['0']['test_acc'][-3:])
+                df.loc[df.index.values[i], j] = max_acc
+        except:
+            df.loc[df.index.values[i], j] = None
+            
 print(df)
 
 df = df.T
 df.plot(marker='o')
 plt.xlabel('N x learning rate')
 plt.xticks(ticks=df.index.values, labels=np.array(lrs, dtype=str))
-plt.ylabel('Last 5 Avg Acc')
-plt.title('CE + lep05')
-plt.ylim((50, 70))
-plt.show()
+plt.ylabel('Last 3 Avg Acc')
+plt.title('linear_KD + lep20')
+plt.ylim((50, 75))
+# plt.show()
+plt.savefig('linear_KD_lep20')
 print("")
