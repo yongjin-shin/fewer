@@ -260,6 +260,7 @@ class Server:
         len_locals = len(locals_params)
         client_dataset_results = np.empty(shape=(len_locals, len_locals))
         valid_dataset_results = np.empty_like(client_dataset_results)
+        local_unique_data = []
         
         for row, body_params in enumerate(locals_params):
             if row != len_locals-1:
@@ -276,29 +277,38 @@ class Server:
                     
                 client_acc = get_test_results(args=self.args, model=self.dummy_model, 
                                               dataloader=d_loader, criterion=None,
-                                              return_loss=False, return_acc=True, return_logit=False)
+                                              return_loss=False, return_acc=True, return_logit=False,
+                                              return_unique_labels=True)
                 client_dataset_results[row, col] = client_acc['acc']
+                if col == 0:
+                    local_unique_data.append(client_acc['label'])
                 
                 valid_acc = get_test_results(self.args, self.dummy_model, self.valid_loader, None,
                                             return_loss=False, return_acc=True, return_logit=False)
                 valid_dataset_results[row, col] = valid_acc['acc']
 
-        client_dataset_results = np.abs(client_dataset_results - client_dataset_results.diagonal())
-        valid_dataset_results = np.abs(valid_dataset_results - valid_dataset_results.diagonal())
+        # client_dataset_results = np.abs(client_dataset_results - client_dataset_results.diagonal())
+        # valid_dataset_results = np.abs(valid_dataset_results - valid_dataset_results.diagonal())
         
         # draw heatmap
         fig, [ax1, ax2] = plt.subplots(nrows=1, ncols=2, figsize=(12, 6))
         ax1.get_shared_y_axes().join(ax2)
-        g1 = sns.heatmap(client_dataset_results, linewidth=0.5, cmap="YlGnBu", cbar=False, ax=ax1)
-        g2 = sns.heatmap(valid_dataset_results, linewidth=0.5, cmap="YlGnBu", cbar=False, ax=ax2)
+        g1 = sns.heatmap(client_dataset_results, annot=True, fmt='.1f', annot_kws={"fontsize":8}, linewidth=0.5, cmap="YlGnBu", cbar=False, ax=ax1)
+        g2 = sns.heatmap(valid_dataset_results, annot=True, fmt='.1f', annot_kws={"fontsize":8}, linewidth=0.5, cmap="YlGnBu", cbar=False, ax=ax2)
         
         g1.set_title('Local Dataset')
-        g1.set_xticks([])
-        g1.set_yticks([])
+        # g1.set_xticks([])
+        # g1.set_yticks([])
+        
+        ticks = [f"{unique_labels}" for unique_labels in local_unique_data]
+        ticks[-1] = 'ALL'
+        g1.set_yticklabels(tuple(ticks), rotation=0)
+        g1.set_xticklabels(tuple(ticks), rotation=45)
 
         g2.set_title('Valid Dataset')
-        g2.set_xticks([])
+        # g2.set_xticks([])
         g2.set_yticks([])
+        g2.set_xticklabels(tuple(ticks), rotation=45)
 
         fig.suptitle(f"{e}th Round", fontsize=15)
         fig.text(0.04, 0.5, 'Clients\' Body', va='center', rotation='vertical')

@@ -81,16 +81,19 @@ def compute_js_divergence(p_logits, q_logits):
     return float(np.mean(js, axis=0))
 
 
-def get_test_results(args, model, dataloader, criterion, return_loss, return_acc, return_logit):
+def get_test_results(args, model, dataloader, criterion, return_loss, return_acc, return_logit, return_unique_labels=False):
     ret = {}
     ret_logit, test_loss, correct, itr = [], 0, 0, 0
     len_data = 0
+    
+    y_containers = []
 
     model.to(args.device).eval()
     for itr, (data, target) in enumerate(dataloader):
         len_data += data.size(0)
         data = data.to(args.device)
         target = target.to(args.device)
+        y_containers.append(target)
         logits = model(data)
 
         if return_loss:
@@ -111,6 +114,9 @@ def get_test_results(args, model, dataloader, criterion, return_loss, return_acc
 
     if return_logit:
         ret['logits'] = np.concatenate(ret_logit)
+        
+    if return_unique_labels:
+        ret['label'] = torch.unique(torch.cat(y_containers)).tolist()
 
     return ret
 
