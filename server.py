@@ -3,7 +3,9 @@ import pandas as pd
 import copy, gc, time
 import torch
 from torch.utils.data import DataLoader
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, CosineAnnealingWarmRestarts
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 # import related custom packages
 from local import *
@@ -99,6 +101,10 @@ class Server:
             print(layer_val)
             print(local_results['grad_norm'])
             print(local_results['weight_norm'])
+            
+            # Swapping Motivation Test
+            if fed_round % 10 == 0:
+                self.swapping_head(fed_round, self.logger, local_results['updated_locals'], model, clients_dataset)
 
             end_time = time.time()
             ellapsed_time = end_time - start_time
@@ -248,6 +254,61 @@ class Server:
         }
         return ret
 
+    def swapping_head(self, e, logger, locals_params, global_params, clients_dataset):
+        locals_params.append(global_params)
+        
+        len_locals = len(locals_params)
+        client_dataset_results = np.empty(shape=(len_locals, len_locals))
+        valid_dataset_results = np.empty_like(client_dataset_results)
+        
+        for row, body_params in enumerate(locals_params):
+            if row != len_locals-1:
+                local_data = clients_dataset[row]
+                d_loader = DataLoader(local_data, batch_size=100, shuffle=False)
+            else:
+                d_loader = self.valid_loader
+            
+            for col, head_params in enumerate(locals_params):
+                params = copy.deepcopy(body_params)
+                params[f"{self.layers_name[-1]}.bias"] = head_params[f"{self.layers_name[-1]}.bias"]
+                params[f"{self.layers_name[-1]}.weight"] = head_params[f"{self.layers_name[-1]}.weight"]
+                self.dummy_model.load_state_dict(params)
+                    
+                client_acc = get_test_results(args=self.args, model=self.dummy_model, 
+                                              dataloader=d_loader, criterion=None,
+                                              return_loss=False, return_acc=True, return_logit=False)
+                client_dataset_results[row, col] = client_acc['acc']
+                
+                valid_acc = get_test_results(self.args, self.dummy_model, self.valid_loader, None,
+                                            return_loss=False, return_acc=True, return_logit=False)
+                valid_dataset_results[row, col] = valid_acc['acc']
+
+        client_dataset_results = np.abs(client_dataset_results - client_dataset_results.diagonal())
+        valid_dataset_results = np.abs(valid_dataset_results - valid_dataset_results.diagonal())
+        
+        # draw heatmap
+        fig, [ax1, ax2] = plt.subplots(nrows=1, ncols=2, figsize=(12, 6))
+        ax1.get_shared_y_axes().join(ax2)
+        g1 = sns.heatmap(client_dataset_results, linewidth=0.5, cmap="YlGnBu", cbar=False, ax=ax1)
+        g2 = sns.heatmap(valid_dataset_results, linewidth=0.5, cmap="YlGnBu", cbar=False, ax=ax2)
+        
+        g1.set_title('Local Dataset')
+        g1.set_xticks([])
+        g1.set_yticks([])
+
+        g2.set_title('Valid Dataset')
+        g2.set_xticks([])
+        g2.set_yticks([])
+
+        fig.suptitle(f"{e}th Round", fontsize=15)
+        fig.text(0.04, 0.5, 'Clients\' Body', va='center', rotation='vertical')
+        fig.text(0.5, 0.01, 'Clients\' Head', ha='center')
+        # plt.savefig('test.png')
+        logger.save_plot(fig, f"{e}th_round")
+        plt.close()
+        
+        return
+
     def get_data(self, dataset_valid, dataset_locals, dataset_test):
         self.dataset_locals = dataset_locals
 
@@ -315,6 +376,14 @@ class Server:
                                                     decay_rate=0.5)
         elif 'constant' == self.args.scheduler:
             self.server_lr_scheduler = ConstantLR(self.args.lr)
+
+        elif 'cosine_warmup' == self.args.scheduler:
+            self.server_lr_scheduler = CosineAnnealingWarmRestarts(
+                optimizer=self.server_optim,
+                T_0=60,
+                T_mult=1,
+                eta_min=1e-3
+            )
         else:
             raise NotImplementedError
 

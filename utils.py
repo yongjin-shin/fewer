@@ -57,6 +57,10 @@ class Logger:
         with open(f"{self.path}/results.json", 'w') as fp:
             json.dump(self.exp_results, fp)
 
+    def save_plot(self, fig, name):
+        fig.savefig(f"{self.path}/heatmap_{name}.png")
+        return
+
     def add_results(self, results):
         if results.exp_id not in self.exp_results.keys():
             self.exp_results[results.exp_id] = self.make_basic_dict()
