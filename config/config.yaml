@@ -35,6 +35,9 @@ weight_decay: 0.0000
 scheduler: 'constant'  # cosine | linear | constant | step
 
 # motivation exp
+swapping_interval: 0
+noise_interval: 0
+start_freezing:
 slow_layer:
 slow_ratio: 0.01
 fast_layer:

@@ -200,6 +200,18 @@ class Local:
             )
 
         return
+    
+    def add_slower_layer(self, slow_layer, slow_ratio):
+        if not isinstance(slow_layer, list):
+            slow_layer = list(slow_layer)
+            
+        if self.args.slow_layer is None:
+            self.args.slow_layer = []
+        
+        self.args.slow_layer += slow_layer
+        self.args.slow_ratio = slow_ratio
+        
+        return
         
     def upload_model(self):
         return copy.deepcopy(self.model.state_dict())

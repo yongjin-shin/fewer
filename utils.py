@@ -9,7 +9,7 @@ __all__ = ['Results', 'Logger', 'read_argv', 'make_exp_name']
 
 tup = ['train_loss', 'test_loss', 'test_acc', 'sparsity',
        'cost', 'round', 'exp_id', 'ellapsed_time', 'lr',
-       'beta', 'ensemble_acc', 'layer_var', 'layer_grad_norm', 'layer_weigh_norm']
+       'beta', 'ensemble_acc', 'layer_var', 'layer_grad_norm', 'layer_weigh_norm', 'tubulance_info']
 Results = namedtuple('Results', tup,)
 
 
@@ -68,18 +68,6 @@ class Logger:
         for _item in results._fields:
             self.exp_results[results.exp_id][_item].append(getattr(results, _item))
 
-        # self.exp_results[results.exp_id]['round'].append(results.round)
-        # self.exp_results[results.exp_id]['cost'].append(results.cost)
-        # self.exp_results[results.exp_id]['train_loss'].append(results.train_loss)
-        # self.exp_results[results.exp_id]['test_loss'].append(results.test_loss)
-        # self.exp_results[results.exp_id]['test_acc'].append(results.test_acc)
-        # self.exp_results[results.exp_id]['ensemble_acc'].append(results.ensemble_acc)
-        # self.exp_results[results.exp_id]['sparsity'].append(results.sparsity)
-        # self.exp_results[results.exp_id]['lr'].append(results.lr)
-        # # self.exp_results[results.exp_id]['d_e2g'].append(results.d_e2g)
-        # # self.exp_results[results.exp_id]['d_g2l'].append(results.d_g2l)
-        # self.exp_results[results.exp_id]['beta'].append(results.beta)
-
     def make_basic_dict(self):
         ret = {}
         for _item in tup:
@@ -136,6 +124,9 @@ def read_argv():
     parser.add_argument('--exp_name', type=str, default=None)
     parser.add_argument('--ratio_clients_per_round', type=float)
 
+    parser.add_argument('--swapping_interval', type=int)
+    parser.add_argument('--noise_interval', type=int)
+    parser.add_argument('--start_freezing', type=int)
     parser.add_argument('--slow_layer', nargs='+', default=None, type=int)
     parser.add_argument('--slow_ratio', type=float)
     parser.add_argument('--fast_layer', nargs='+', default=None, type=int)
@@ -179,6 +170,18 @@ def read_argv():
     args.weight_decay = additional_args.weight_decay if additional_args.weight_decay is not None else args.weight_decay
 
     # motivation settings
+    args.swapping_interval = additional_args.swapping_interval if additional_args.swapping_interval is not None else args.swapping_interval
+    if not args.swapping_interval:
+        args.swapping_interval = args.nb_rounds + 1
+    
+    args.noise_interval = additional_args.noise_interval if additional_args.noise_interval is not None else args.noise_interval
+    if not args.noise_interval:
+        args.noise_interval = args.nb_rounds + 1
+    
+    args.start_freezing = additional_args.start_freezing if additional_args.start_freezing is not None else args.start_freezing
+    if args.start_freezing is None:
+        args.start_freezing = args.nb_rounds + 1
+    
     args.slow_layer = additional_args.slow_layer if additional_args.slow_layer is not None else args.slow_layer
     args.slow_ratio = additional_args.slow_ratio if additional_args.slow_ratio is not None else args.slow_ratio
     args.fast_layer = additional_args.fast_layer if additional_args.fast_layer is not None else args.fast_layer

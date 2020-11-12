@@ -93,7 +93,6 @@ class Server:
             self.load_model(model)
             test_results = self.test()
             # test_results = self.test_agg_vs_ensemble(local_results['updated_locals'])
-            self.server_lr_scheduler.step()
 
             # Layer Variance
             layer_val = get_variance(self.layers_name, self.model.state_dict(),
@@ -102,10 +101,19 @@ class Server:
             print(local_results['grad_norm'])
             print(local_results['weight_norm'])
             
+            # Tubulance Motivation Test
+            noise_results = None
+            if self.args.noise_interval < self.args.nb_rounds and fed_round % self.args.noise_interval == 0:
+                noise_results = get_tubulanced_results(self.args, self.server_lr_scheduler.get_last_lr()[0] * 10, 
+                                                       self.layers_name, model, self.dummy_model, 
+                                                       self.valid_loader, self.criterion, local_results['grad_norm'],
+                                                       n_noise=100, dist_list=[0.1, 0.5, 1, 2, 3, 4])
+            
             # Swapping Motivation Test
-            if fed_round % 10 == 0:
+            if self.args.swapping_interval < self.args.nb_rounds and fed_round % self.args.swapping_interval == 0:
                 self.swapping_head(fed_round, self.logger, local_results['updated_locals'], model, clients_dataset)
 
+            self.server_lr_scheduler.step()
             end_time = time.time()
             ellapsed_time = end_time - start_time
             self.logger.get_results(Results(local_results['loss'], test_results['loss'], test_results['acc'],
@@ -113,11 +121,14 @@ class Server:
                                             fed_round, exp_id, ellapsed_time,
                                             self.server_lr_scheduler.get_last_lr()[0],
                                             best_beta, valid_results['acc'], layer_val,
-                                            local_results['grad_norm'], local_results['weight_norm']))
+                                            local_results['grad_norm'], local_results['weight_norm'], noise_results))
             # np.mean(local_results['kld']), test_results['kld'], test_results['ensemble_acc']))
 
             gc.collect()
             torch.cuda.empty_cache()
+            if fed_round == self.args.start_freezing:
+                self.locals.add_slower_layer(slow_layer=[4],
+                                             slow_ratio=0)
 
         return self.container, self.model
 
@@ -256,14 +267,15 @@ class Server:
 
     def swapping_head(self, e, logger, locals_params, global_params, clients_dataset):
         locals_params.append(global_params)
-        
+        locals_params.append(torch.load(f"./log/[cifarcnn-cifar10]oracle/0/model.h5"))
+
         len_locals = len(locals_params)
         client_dataset_results = np.empty(shape=(len_locals, len_locals))
         valid_dataset_results = np.empty_like(client_dataset_results)
         local_unique_data = []
         
         for row, body_params in enumerate(locals_params):
-            if row != len_locals-1:
+            if row < len_locals-2:
                 local_data = clients_dataset[row]
                 d_loader = DataLoader(local_data, batch_size=100, shuffle=False)
             else:
@@ -301,7 +313,8 @@ class Server:
         # g1.set_yticks([])
         
         ticks = [f"{unique_labels}" for unique_labels in local_unique_data]
-        ticks[-1] = 'ALL'
+        ticks[-2] = 'Agrgt'
+        ticks[-1] = 'Oracle'
         g1.set_yticklabels(tuple(ticks), rotation=0)
         g1.set_xticklabels(tuple(ticks), rotation=45)
 
@@ -348,21 +361,21 @@ class Server:
         self.dummy_model = dummy_model.to(self.args.server_location)
         self.init_cost = get_size(self.model.parameters())
 
-        # params = [k for k in self.model.state_dict()]
-        # self.layers_name = []
-        # for layer in params:
-        #     split_name = layer.split('.')[0]
-        #     if 'weight' in split_name or 'bias' in split_name:
-        #         raise RuntimeError
-        #
-        #     self.layers_name.append(split_name)
-
         self.layers_name = []
         for name, layer in model.named_modules():
             if isinstance(layer, torch.nn.Conv2d) or isinstance(layer, torch.nn.Linear):
                 self.layers_name.append(name)
         self.layers_name = np.array(self.layers_name)
 
+        original_params = self.model.state_dict()
+        oracle_params = torch.load(f"./log/[cifarcnn-cifar10]oracle/0/model.h5")
+        original_params['fc3.weight'] = copy.deepcopy(oracle_params['fc3.weight'])
+        original_params['fc3.bias'] = copy.deepcopy(oracle_params['fc3.bias'])
+        self.model.load_state_dict(original_params)
+        
+        print("Copied Oracle Head")
+        return
+        
     def make_opt(self):
         self.server_optim = torch.optim.SGD(self.model.parameters(),
                                             lr=self.args.lr,
