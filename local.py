@@ -48,14 +48,14 @@ class Local:
         if self.args.global_loss_type != 'none':
             self.keep_global()
             
-        if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD') or ('Distill' in self.args.mode):
+        if 'D' in self.args.mode:
             self.keep_global()
             if self.args.use_beta_scheduler:
                 local_ret = get_test_results(self.args, self.round_global, self.data_loader, None,
                                              return_loss=False, return_acc=True, return_logit=True)
                 local_acc = local_ret['acc']
 
-        t_logits = None
+        t_logits, t_features = None, None
         fake_loader = cycle([(None, None)])
         ret_norm = dict(zip(self.layers_name, [[] for _ in range(len(self.layers_name))]))
 
@@ -76,7 +76,7 @@ class Local:
                     data, target = x[idx], y[idx]
 
                 output, features = self.model(data, get_features=True)
-                if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD') or ('Distill' in self.args.mode):
+                if 'D' in self.args.mode:
                     with torch.no_grad():
                         if self.args.oracle:
                             t_logits, t_features = self.oracle(data, get_features=True)

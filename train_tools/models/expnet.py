@@ -11,7 +11,7 @@ class ExpNet0(nn.Module):
         self.relu = nn.ReLU()
         self.ap = nn.AdaptiveAvgPool2d((1, 1))
 
-    def forward(self, x, features=False):
+    def forward(self, x, get_features=False):
         x = self.relu(self.conv1(x))
         x = self.ap(x)
         features = torch.flatten(x, 1)
@@ -32,7 +32,7 @@ class ExpNet1(nn.Module):
         self.relu = nn.ReLU()
         self.ap = nn.AdaptiveAvgPool2d((1, 1))
 
-    def forward(self, x, features=False):
+    def forward(self, x, get_features=False):
         x = self.relu(self.conv1(x))
         x = self.relu(self.conv2(x))
         x = self.ap(x)
@@ -55,7 +55,7 @@ class ExpNet2(nn.Module):
         self.relu = nn.ReLU()
         self.ap = nn.AdaptiveAvgPool2d((1, 1))
 
-    def forward(self, x, features=False):
+    def forward(self, x, get_features=False):
         x = self.relu(self.conv1(x))
         x = self.relu(self.conv2(x))
         x = self.relu(self.conv3(x))
@@ -81,7 +81,7 @@ class ExpNet3(nn.Module):
         self.relu = nn.ReLU()
         self.ap = nn.AdaptiveAvgPool2d((1, 1))
 
-    def forward(self, x, features=False):
+    def forward(self, x, get_features=False):
         x = self.relu(self.conv1(x))
         x = self.relu(self.conv2(x))
         x = self.relu(self.conv3(x))
@@ -109,7 +109,7 @@ class ExpNet4(nn.Module):
         self.relu = nn.ReLU()
         self.ap = nn.AdaptiveAvgPool2d((1, 1))
 
-    def forward(self, x, features=False):
+    def forward(self, x, get_features=False):
         x = self.relu(self.conv1(x))
         x = self.relu(self.conv2(x))
         x = self.relu(self.conv3(x))
@@ -139,7 +139,7 @@ class ExpNet5(nn.Module):
         self.relu = nn.ReLU()
         self.ap = nn.AdaptiveAvgPool2d((1, 1))
 
-    def forward(self, x, features=False):
+    def forward(self, x, get_features=False):
         x = self.relu(self.conv1(x))
         x = self.relu(self.conv2(x))
         x = self.relu(self.conv3(x))

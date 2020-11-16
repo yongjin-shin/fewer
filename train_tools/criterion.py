@@ -102,6 +102,12 @@ class OverhaulLoss(nn.Module):
             rep_loss = F.mse_loss(features, t_features)
             loss = ce_loss + self.beta * rep_loss
             
+        elif self.mode == 'UniformityD':
+            ce_loss = cross_entropy(logits, target)
+            unif_loss = lunif(F.normalize(features))
+            loss = ce_loss + self.beta * unif_loss
+            
+            
         #elif self.mode == 'RepDistill_cosine':
         #    ce_loss = cross_entropy(logits, target)
         #    rep_loss = F.mse_loss(features, t_features)
@@ -114,6 +120,11 @@ class OverhaulLoss(nn.Module):
 
 
 ###########################################################################################################################    
+def lunif(x, t=2):
+    sq_pdist = torch.pdist(x, p=2).pow(2)
+    return sq_pdist.mul(-t).exp().mean().log()
+
+
 def onehot(indexes, N=None, ignore_index=None):
     """
     Creates a one-representation of indexes with N possible entries
