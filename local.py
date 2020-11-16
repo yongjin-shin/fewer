@@ -9,7 +9,7 @@ import numpy as np
 __all__ = ['Local']
 
 
-class Local:
+class Local():
     def __init__(self, model, criterion, testset=None, local_ep=5, local_bs=50, 
                  global_loss=['none', 0], server_location='cpu', device='cuda:0'):
 
