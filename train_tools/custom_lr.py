@@ -4,7 +4,7 @@ from math import log
 __all__ = ['ConstantLR', 'LinearLR', 'LinearStepLR']
 
 
-class ConstantLR:
+class ConstantLR():
     def __init__(self, init_lr):
         self.init_lr = init_lr
         self.crnt_lr = self.init_lr
@@ -19,7 +19,7 @@ class ConstantLR:
         pass
 
 
-class LinearLR:
+class LinearLR():
     def __init__(self, init_lr, epoch, eta_min):
         self.init_lr = init_lr
         self.crnt_lr = init_lr
@@ -34,7 +34,7 @@ class LinearLR:
         self.crnt_lr -= self.diff
 
 
-class LinearStepLR:
+class LinearStepLR():
     def __init__(self, optimizer, init_lr, epoch, eta_min, decay_rate):
         n = int((log(eta_min) - log(init_lr))/log(decay_rate)) + 1
         step_size = int(epoch/n)

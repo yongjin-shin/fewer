@@ -3,6 +3,7 @@ import torch
 
 __all__ = ['MnistCNN', 'CifarCNN']
 
+
 class MnistCNN(nn.Module):
     def __init__(self, dim_in=3, num_classes=10):
         super(MnistCNN, self).__init__()

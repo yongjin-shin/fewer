@@ -7,23 +7,13 @@ __all__ = ['OverhaulLoss']
 
 
 class OverhaulLoss(nn.Module):
-    def __init__(self, args):
+    def __init__(self, mode='CE', num_classes=10, temp=1, smoothing=0, beta=1):
         super(OverhaulLoss, self).__init__()
-        self.num_classes = args.num_classes
-        self.mode = args.mode
-        self.temp = args.temp
-        self.smoothing = args.smoothing
-        self.beta = args.beta
-        self.args = args
-
-    def beta_scheduler(self, acc):
-        if 'decrea' in self.args.beta_schedule_type:
-            y = (-0.8 / 100)*acc + 0.9
-        elif 'increa' in self.args.beta_schedule_type:
-            y = (0.8 / 100)*acc + 0.1
-        else:
-            raise NotImplemented
-        return y
+        self.mode = mode
+        self.num_classes = num_classes
+        self.temp = temp
+        self.smoothing = smoothing
+        self.beta = beta
 
     def forward(self, outputs, target, t_logits=None, features=None, t_features=None, acc=None, beta=None):
         logits = outputs
@@ -31,20 +21,15 @@ class OverhaulLoss(nn.Module):
 
         # one-hot + cross-entropy loss
         if self.mode == 'CE':
-            # hard_target = onehot(target, N=self.num_classes).float()
-            # loss += cross_entropy(logits, hard_target, reduction='none')
             loss += F.cross_entropy(logits, target, reduction='none')
             if torch.isnan(loss).any():
-                print("here")
-
+                print("! NaN loss !")
+                
         ############### Soft Target Methods ##############################################
 
         # label smoothing
         elif self.mode == 'LS':
-            with torch.no_grad():
-                hard_target = onehot(target, N=self.num_classes).float()
-
-            loss += cross_entropy(logits, hard_target, smooth_eps=self.smoothing, reduction='none')
+            loss += cross_entropy(logits, target, smooth_eps=self.smoothing, reduction='none')
 
         # knowledge distillation
         elif self.mode == 'KD':
@@ -53,66 +38,18 @@ class OverhaulLoss(nn.Module):
 
             ce_loss = cross_entropy(logits, target, reduction='none')
             kd_loss = ((self.temp)**2) * cross_entropy(logits/self.temp, t_distill, reduction='none')
-
-            if beta is None:
-                beta = self.beta
-
-            if acc is None:
-                # print(f"DEL ME: {beta}")
-                loss += ((1-beta)*ce_loss + beta*kd_loss)
-            else:
-                beta = self.beta_scheduler(acc)
-                loss += ((1-beta)*ce_loss + beta*kd_loss)
-                # print(acc, beta)
+            
+            loss = ce_loss + self.beta * kd_loss
 
         # FedLSD
-        elif self.mode == 'FedLSD':
-            with torch.no_grad():
-                t_logits[range(t_logits.shape[0]), target] = -10000 # very small number to true label logits
-                hard_target = onehot(target, N=self.num_classes).float()
-                t_distill = torch.softmax(t_logits/self.temp, dim=1)
-                new_target = ((1-self.smoothing) * hard_target) + (self.smoothing * t_distill)
+        #elif self.mode == 'FedLSD':
+        #    with torch.no_grad():
+        #        t_logits[range(t_logits.shape[0]), target] = -10000 # very small number to true label logits
+        #        hard_target = onehot(target, N=self.num_classes).float()
+        #        t_distill = torch.softmax(t_logits/self.temp, dim=1)
+        #        new_target = ((1-self.smoothing) * hard_target) + (self.smoothing * t_distill)
 
-            loss += cross_entropy(logits, new_target, reduction='none')
-        
-        
-        elif self.mode == 'MseDistill':
-            ce_loss = cross_entropy(logits, target, reduction='none')
-            kd_loss = F.mse_loss(logits, t_logits, reduction='none')
-            kd_loss = kd_loss.mean(dim=1)
-            loss += ce_loss + kd_loss
-            
-        elif self.mode == 'MseDistill_nt':
-            b = t_logits.shape[0]
-            with torch.no_grad():
-                nt_idx = torch.ones(t_logits.shape)
-                nt_idx[range(b), target] = False
-                nt_idx = nt_idx.bool()
-                
-            ce_loss = cross_entropy(logits, target, reduction='none')
-            kd_loss = F.mse_loss(logits[nt_idx].view(b, self.num_classes-1), 
-                                 t_logits[nt_idx].view(b, self.num_classes-1), 
-                                 reduction='none')
-            
-            kd_loss = kd_loss.mean(dim=1)
-            loss += ce_loss + kd_loss
-            
-        elif self.mode == 'RepDistill_l2':
-            ce_loss = cross_entropy(logits, target)
-            rep_loss = F.mse_loss(features, t_features)
-            loss = ce_loss + self.beta * rep_loss
-            
-        elif self.mode == 'UniformityD':
-            ce_loss = cross_entropy(logits, target)
-            unif_loss = lunif(F.normalize(features))
-            loss = ce_loss + self.beta * unif_loss
-            
-            
-        #elif self.mode == 'RepDistill_cosine':
-        #    ce_loss = cross_entropy(logits, target)
-        #    rep_loss = F.mse_loss(features, t_features)
-        #    loss = ce_loss + self.beta * rep_loss
-            
+        #    loss += cross_entropy(logits, new_target, reduction='none')
             
         loss = loss.mean()  # Average Batch Loss
 
@@ -120,11 +57,6 @@ class OverhaulLoss(nn.Module):
 
 
 ###########################################################################################################################    
-def lunif(x, t=2):
-    sq_pdist = torch.pdist(x, p=2).pow(2)
-    return sq_pdist.mul(-t).exp().mean().log()
-
-
 def onehot(indexes, N=None, ignore_index=None):
     """
     Creates a one-representation of indexes with N possible entries

@@ -4,32 +4,32 @@ from scipy.special import softmax
 from .models import *
 
 __all__ = ['create_nets', 'get_size', 'compute_kl_divergence', 'compute_js_divergence',
-           'get_test_results', 'get_server_location', 'get_device', 'calc_l2_norm',
+           'model_evaluator', 'get_server_location', 'get_device', 'calc_l2_norm',
            'get_variance']
 
 
-MODELS = {'mlp': MLP, 'deep_mlp': DeepMLP, 'testcnn': TestCNN,'mnistcnn': MnistCNN, 'cifarcnn': CifarCNN,
-          'vgg11': vgg11, 'vgg11_slim': vgg11_slim, 'res8': resnet8, 'res14': resnet14, 'res20': resnet20,
-          'exp0': ExpNet0, 'exp1': ExpNet1, 'exp2': ExpNet2, 'exp3': ExpNet3, 'exp4': ExpNet4, 'exp5': ExpNet5}
+MODELS = {'mnistcnn': MnistCNN, 'cifarcnn': CifarCNN,
+          'vgg11': vgg11, 'vgg11_slim': vgg11_slim, 
+          'res8': resnet8, 'res14': resnet14, 'res20': resnet20}
 
 
-def create_nets(args, location, num_classes=10):
+def create_nets(model, dataset='cifar10', location='cpu', num_classes=10):
     print(f"{location}: ", end="", flush=True)
     
-    if 'mnist' in args.dataset:
+    if 'mnist' in dataset:
         dim_in = 1
         img_size = 1*28*28
         
-    elif 'cifar' in args.dataset:
+    elif 'cifar' in dataset:
         dim_in = 3
         img_size = 3*32*32
     else:
         raise NotImplementedError
 
-    if args.model in ['mlp', 'deep_mlp']:
-        model = MODELS[args.model](img_size, args.hidden, num_classes=num_classes)
+    if model in ['mlp', 'deep_mlp']:
+        model = MODELS[model](img_size, hidden, num_classes=num_classes)
     else:
-        model = MODELS[args.model](dim_in=dim_in, num_classes=num_classes)
+        model = MODELS[model](dim_in=dim_in, num_classes=num_classes)
 
     return model
 
@@ -80,38 +80,25 @@ def compute_js_divergence(p_logits, q_logits):
     return float(np.mean(js, axis=0))
 
 
-def get_test_results(args, model, dataloader, criterion, return_loss, return_acc, return_logit):
-    ret = {}
-    ret_logit, test_loss, correct, itr = [], 0, 0, 0
-    len_data = 0
+@torch.no_grad()
+def model_evaluator(model, dataloader, criterion, device):
+    running_loss, running_correct, data_num = 0, 0, 0
 
-    model.to(args.device).eval()
+    model.to(device).eval()
     for itr, (data, target) in enumerate(dataloader):
-        len_data += data.size(0)
-        data = data.to(args.device)
-        target = target.to(args.device)
+        data_num += data.size(0)
+        data, target = data.to(device), target.to(device)
+        
         logits = model(data)
-
-        if return_loss:
-            test_loss += criterion(logits, target).item()
-
-        if return_acc:
-            y_pred = torch.max(logits, dim=1)[1]
-            correct += torch.sum(y_pred.view(-1) == target.to(args.device).view(-1)).cpu().item()
-
-        if return_logit:
-            ret_logit.append(logits.cpu().detach().numpy())
-
-    if return_loss:
-        ret['loss'] = test_loss / (itr + 1)
-
-    if return_acc:
-        ret['acc'] = 100 * float(correct) / float(len_data)
-
-    if return_logit:
-        ret['logits'] = np.concatenate(ret_logit)
-
-    return ret
+        pred = torch.max(logits, dim=1)[1]
+        
+        running_correct += (pred == target).sum().item()
+        running_loss += criterion(logits, target).item()
+        
+    eval_loss = round(running_loss / data_num, 4)
+    eval_acc = round((running_correct / data_num) * 100, 2)
+    
+    return eval_loss, eval_acc
 
 
 def calc_delta(local, server):
@@ -165,26 +152,19 @@ def get_variance(calc_order, server_state_dict, locals, device):
     server_vecs = get_vec(calc_order, server_state_dict, device)
     local_vecs = get_local_vec(calc_order, locals, device)
 
-    # server_norm = torch.norm(server_vecs)
-    # local_norms = torch.norm(local_vecs, dim=0)
-    #
-    # inner_prod = server_vecs.T @ local_vecs
-    # normalizer = server_norm * local_norms
-    # ret = torch.var(inner_prod / normalizer)
     cos = torch.nn.CosineSimilarity(dim=1)
-    # ret = torch.log(torch.var(cos(server_vecs.repeat(1, local_vecs.shape[-1]),
-    #                               local_vecs)))
     ret_cos = {}
+    
     for layer in calc_order:
         val_cos = torch.tensor([0], dtype=torch.float, device=device)
         for i, local_vec in enumerate(local_vecs):
             local_cos = torch.clamp(cos(server_vecs[layer], local_vec[layer]),
                                     max=1,
                                     min=-1)
-            # print(f"{layer}/{i}: {local_cos}")
             val_cos += torch.abs(torch.acos(local_cos))
         val_cos /= len(local_vecs)
         ret_cos[layer] = round(val_cos.item(), 3)
+        
     return ret_cos
 
 

@@ -1,8 +1,6 @@
 .ipynb
 .ipynb_checkpoints/
 __pycache__/
-log/
-dataset/
-*.un~
-*.sh
-*.yaml
+results/
+data/
+wandb/

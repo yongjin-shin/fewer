@@ -1,54 +1,107 @@
-import numpy as np
-from server import Server
-from data import Preprocessor
+# -*- coding: utf-8 -*-
+import torch
+import torch.optim as optim
+import torch.optim.lr_scheduler as lr_scheduler
+
+from server import *
+from train_tools import *
 from utils import *
-import torch, gc, warnings, random
+
+import numpy as np
+import wandb, argparse, json, os
+import warnings
 
 warnings.filterwarnings('ignore')
 
+# Parser arguments for terminal execution
+parser = argparse.ArgumentParser(description='Process Config Dicts')
+parser.add_argument('--config_path', default='./config/default.py', type=str)
+parser.add_argument('--seed', default=0, type=int, help='random seed')
+args = parser.parse_args()
+
+# Load a configuration file
+with open(args.config_path) as f:
+    config_code = f.read()
+    exec(config_code) 
+
+torch.set_printoptions(10)
+
+MODEL = {}
+
+################################################################### 
+SCHEDULER = {'step': lr_scheduler.StepLR,
+            'multistep': lr_scheduler.MultiStepLR,
+            'cosine': lr_scheduler.CosineAnnealingLR}
+
+
+def _get_setups(opt):
+    # datasets
+    datasetter = DataSetter(root='./data', dataset=opt.data_setups.dataset)
+    datasets = datasetter.data_distributer(**opt.data_setups.param.__dict__)
+    
+    # train setups
+    model = create_nets(model=opt.fed_setups.model, 
+                        dataset=datasetter.dataset, 
+                        num_classes=datasetter.num_classes)
+    
+    criterion = OverhaulLoss(**opt.criterion.param.__dict__)
+    optimizer = optim.SGD(model.parameters(), **opt.optimizer.param.__dict__)
+    
+    if opt.scheduler.enabled:
+        scheduler = SCHEDULER[opt.scheduler.type](optimizer, **opt.scheduler.param.__dict__)
+    else:
+        scheduler = None
+    
+    return datasets, model, criterion, optimizer, scheduler
+
+
+################################################################################################################
 
 def main():
-    args = read_argv()
-    logger = Logger()
-    logger.get_args(args)
-    logger.save_yaml()
-
-    for i in range(args.nb_exp_reps):
-        model = single_experiment(args, i, logger)
-        logger.save_model(param=model.state_dict(), exp_id=i)
-
-        del model
-        gc.collect()
-        torch.cuda.empty_cache()
-
-    logger.save_data()
-
-
-def single_experiment(args, i, logger):
-    print(f'\033[91m======================{args.dataset} exp: {i}====================\033[00m')
-    np.random.seed(int(args.seed + i))  # for the reproducibility
-    random.seed(int(args.seed + i))
-    torch.manual_seed(int(args.seed + i))
-    torch.cuda.manual_seed(int(args.seed + i))
-    torch.cuda.manual_seed_all(int(args.seed + i))  # if use multi-GPU
+    # Fix randomness
+    torch.manual_seed(opt.seed)
+    np.random.seed(opt.seed)
     torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    args.seed += 1
+    
+    # Setups
+    datasets, model, criterion, optimizer, scheduler = _get_setups(opt)
+    server = Server(datasets, model, criterion, optimizer, scheduler,
+                    local_args=opt.fed_setups.local_params,
+                    **opt.fed_setups.server_params.__dict__)
+        
+    #wandb.watch(server.model, log='parameters') # inspects server model
+    
+    save_path = os.path.join('./results', opt.exp_info.name)
+    directory_setter(save_path, make_dir=True)
 
-    server = Server(args, logger)  # 서버와 로컬이 만들어짐
-    data = Preprocessor(args)  # Data 불러오는 곳
-    data.distribute_data(server)  # 서버에 데이터를 전달함
-    server.train(exp_id=i)  # 서버 Training 진행함
-    print("\033[91m=\033[00m" * 50 + "\n")
-    ret_model = server.get_global_model()
-    del data
-    del server
-    gc.collect()
-    torch.cuda.empty_cache()
+    # Federeted Learning
+    total_result = server.train()
+    
 
-    logger.save_data()
-    return ret_model
+    # Save results
+    result_path = os.path.join(save_path, 'results.json')
+    
+    with open(result_path, 'w') as f:
+        json.dump(result_path, f)
+    
+    model_path = os.path.join(save_path, 'model.pth')
+    torch.save(model.state_dict(), model_path)
+    
+    # Upload to wandb
+    wandb.save(model_path)
+    wandb.save(result_path)
 
-
+    
+    
 if __name__ == '__main__':
+    opt = objectview(configdict)
+    
+    # Initialize wandb
+    wandb.init(project=opt.exp_info.project_name, 
+               name=opt.exp_info.name, 
+               tags=opt.exp_info.tags,
+               group=opt.exp_info.group,
+               notes=opt.exp_info.notes, 
+               config=configdict)
+    
     main()
