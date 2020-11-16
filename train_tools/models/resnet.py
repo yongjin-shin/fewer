@@ -111,7 +111,7 @@ class ResNet(nn.Module):
         self.block_layers = self._make_layer(planes, repeats, strides)
         
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(planes[-1] * self.expansion, num_classes)
+        self.classifier = nn.Linear(planes[-1] * self.expansion, num_classes)
 
         # weight initialization
         for m in self.modules():
@@ -174,7 +174,7 @@ class ResNet(nn.Module):
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
         features = x
-        x = self.fc(x)
+        x = self.classifier(x)
         
         return x, features
         

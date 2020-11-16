@@ -37,8 +37,8 @@ def directory_setter(path='./results', make_dir=False):
     
 
 class objectview():
-    def __init__(self, test):
-        for k, v in test.items():
+    def __init__(self, config):
+        for k, v in config.items():
             if isinstance(v, dict):
                 self.__dict__[k] = objectview(v)
             else:

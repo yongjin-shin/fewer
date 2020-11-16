@@ -11,7 +11,7 @@ __all__ = [
 
 class VGG(nn.Module):
     '''
-    VGG model 
+    VGG model :[!Caution]: Unstable --- not aligned layer names (classifier)
     '''
     def __init__(self, features, use_dropout=False, fc_dim=512, num_classes=10):
         super(VGG, self).__init__()

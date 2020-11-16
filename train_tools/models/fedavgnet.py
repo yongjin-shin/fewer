@@ -12,7 +12,7 @@ class MnistCNN(nn.Module):
         self.conv2 = nn.Conv2d(32, 64, kernel_size=5)
         self.mp = nn.MaxPool2d(kernel_size=2)
         self.fc1 = nn.Linear(1024, 512)
-        self.fc2 = nn.Linear(512, num_classes)
+        self.classifier = nn.Linear(512, num_classes)
         self.relu = nn.ReLU()
         print("MnistCNN was made")
 
@@ -21,7 +21,7 @@ class MnistCNN(nn.Module):
         x = self.mp(self.relu(self.conv2(x)))
         x = torch.flatten(x, 1)
         x = self.relu(self.fc1(x))
-        x = self.fc2(features)
+        x = self.classifier(features)
         
         if get_features:
             return x, features
@@ -37,7 +37,7 @@ class CifarCNN(nn.Module):
         self.conv2 = nn.Conv2d(32, 64, 5)
         self.fc1 = nn.Linear(64*5*5, 512)
         self.fc2 = nn.Linear(512, 128)
-        self.fc3 = nn.Linear(128, num_classes)
+        self.classifier = nn.Linear(128, num_classes)
         self.relu = nn.ReLU()
         self.mp = nn.MaxPool2d(2)
         print("CifarCNN was made")
@@ -48,7 +48,7 @@ class CifarCNN(nn.Module):
         x = torch.flatten(x, 1)
         x = self.relu(self.fc1(x))
         features = self.relu(self.fc2(x))
-        x = self.fc3(features)
+        x = self.classifier(features)
         
         if get_features:
             return x, features
