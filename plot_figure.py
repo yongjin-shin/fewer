@@ -308,7 +308,7 @@ def plot(args, x, y, data):
         plt.ylim(args.ylim['dist'][0], args.ylim['dist'][1]) if args.ylim is not None else None
     elif 'layer_grad_norm' in y:
         plt.ylabel('L2(grad)', fontsize=20)
-        plt.ylim(args.ylim['grad_norm'][0], args.ylim['grad_norm'][1]) if args.ylim is not None else None
+        # plt.ylim(args.ylim['grad_norm'][0], args.ylim['grad_norm'][1]) if args.ylim is not None else None
     elif 'layer_weigh_norm' in y:
         plt.ylabel('L2(weight)', fontsize=20)
         plt.ylim(args.ylim['weight_norm'][0], args.ylim['weight_norm'][1]) if args.ylim is not None else None

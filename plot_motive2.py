@@ -22,7 +22,7 @@ def plot(mode):
         data_std[layer] = layer_std
 
     fig, ax = plt.subplots()
-    X = np.arange(len(data_std[list(ts[0].keys())[0]])) * 1
+    X = np.arange(len(data_std[list(ts[0].keys())[0]])) * 100
     cmap = cm.Set1
     cnt = -1
     for layer in ts[0].keys():
@@ -41,7 +41,7 @@ def plot(mode):
     ax.figure.savefig(f'plot_{mode}.png')
 
 
-path = '[cifarcnn-cifar10]noisy'
+path = '[cifarcnn-cifar10]maximum_comm5000_swap_noise'
 with open(f'./log/{path}/results.json') as f:
     d = json.load(f)
 

@@ -367,13 +367,13 @@ class Server:
                 self.layers_name.append(name)
         self.layers_name = np.array(self.layers_name)
 
-        original_params = self.model.state_dict()
-        oracle_params = torch.load(f"./log/[cifarcnn-cifar10]oracle/0/model.h5")
-        original_params['fc3.weight'] = copy.deepcopy(oracle_params['fc3.weight'])
-        original_params['fc3.bias'] = copy.deepcopy(oracle_params['fc3.bias'])
-        self.model.load_state_dict(original_params)
+        # original_params = self.model.state_dict()
+        # oracle_params = torch.load(f"./log/[cifarcnn-cifar10]oracle/0/model.h5")
+        # original_params['fc3.weight'] = copy.deepcopy(oracle_params['fc3.weight'])
+        # original_params['fc3.bias'] = copy.deepcopy(oracle_params['fc3.bias'])
+        # self.model.load_state_dict(original_params)
         
-        print("Copied Oracle Head")
+        # print("Copied Oracle Head")
         return
         
     def make_opt(self):
