@@ -1,4 +1,5 @@
 import torch, copy, random
+from termcolor import colored
 import numpy as np
 from itertools import cycle
 import torch.nn.functional as F
@@ -73,6 +74,8 @@ class Local:
                 data = data.to(self.args.device)
                 target = target.to(self.args.device)
                 if fake_data is not None:
+                    # assert torch.all(fake_target[:, -1]>= 0, dim=0) ; 'why negative values'
+                    
                     x = torch.cat((data, fake_data.to(self.args.device)), dim=0)
                     target_y = torch.zeros((len(target), 3)).to(self.args.device)
                     target_y[:, 0] =  target
@@ -322,7 +325,7 @@ class Local:
         mixed_y = []
         
         for i, data_A in enumerate(self.public_dataset[-1]):
-            for j, data_B in enumerate(self.public_dataset[-1]):
+            for j, data_B in enumerate(self.public_dataset[-1][i:]):
                 if not data_A == data_B:
                     mixedAB = simple_mixup(A=(self.public_dataset[0][i], self.public_dataset[1][i]), 
                                            B=(self.public_dataset[0][j], self.public_dataset[1][j]))
@@ -337,6 +340,7 @@ class Local:
         self.mixed_dataloader = DataLoader(self.mixed_dataset, 
                                            batch_size=int(len(self.mixed_dataset)/self.epochs), 
                                            shuffle=True)
+        print(colored(len(self.mixed_dataset), 'red'))
         return 
 
 
@@ -352,7 +356,9 @@ def simple_mixup(A, B, _len=10):
     
     retx = []
     rety = []
-    for lam in np.arange(0, 1, 0.02):
+    for lam in np.arange(0, 1, 0.05):
+        assert lam >= 0.0; 'Something wrong'
+        
         mixed_x = lam * ax + (1-lam) * bx
         mixed_y = torch.tensor([ay, by, lam])
         

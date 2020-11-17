@@ -29,12 +29,15 @@ class OverhaulLoss(nn.Module):
         logits = outputs
         
         if target.size().__len__() > 1 and target.size()[-1] > 1:
-            lam = logits[:, -1]
+            lam = target[:, -1]
             loss1 = F.cross_entropy(logits, target[:, 0].to(dtype=torch.long), reduction='none')
             loss2 = F.cross_entropy(logits, target[:, 1].to(dtype=torch.long), reduction='none')
             
             loss = lam * loss1 + (1-lam) * loss2
             loss = loss.mean()  # Average Batch Loss
+            # print(loss)
+            # if torch.isnan(loss).any() or loss < 0:
+            #     print("here")
             return loss
         
 
