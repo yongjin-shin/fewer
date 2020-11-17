@@ -2,7 +2,7 @@ import torch, copy, random
 import numpy as np
 from itertools import cycle
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, TensorDataset, Dataset
 from train_tools.utils import create_nets
 from train_tools.criterion import OverhaulLoss
 from train_tools.utils import get_test_results, compute_kl_divergence, compute_js_divergence
@@ -43,6 +43,8 @@ class Local:
         self.slow_list = None
         self.fast_list = None
 
+        self.public_dataset = None
+
     def train(self, beta=None):
         local_acc = None
         if self.args.global_loss_type != 'none':
@@ -56,7 +58,8 @@ class Local:
                 local_acc = local_ret['acc']
 
         t_logits = None
-        fake_loader = cycle([(None, None)])
+        # fake_loader = cycle([(None, None)])
+        fake_loader = self.mixed_dataloader
         ret_norm = dict(zip(self.layers_name, [[] for _ in range(len(self.layers_name))]))
 
         train_loss, train_acc, itr, ep = 0, 0, 0, 0
@@ -70,8 +73,12 @@ class Local:
                 data = data.to(self.args.device)
                 target = target.to(self.args.device)
                 if fake_data is not None:
-                    x = torch.cat((data, fake_data), dim=0)
-                    y = torch.cat((target, fake_target), dim=0)
+                    x = torch.cat((data, fake_data.to(self.args.device)), dim=0)
+                    target_y = torch.zeros((len(target), 3)).to(self.args.device)
+                    target_y[:, 0] =  target
+                    target_y[:, -1] = 1
+                    
+                    y = torch.cat((target_y, fake_target.to(self.args.device)), dim=0)
                     idx = torch.randperm(len(y))
                     data, target = x[idx], y[idx]
 
@@ -301,3 +308,78 @@ class Local:
             return ret_loader
         else:
             return cycle([(None, None)])
+
+    def generate_mixup(self):
+        if self.public_dataset is None:
+            return cycle([(None, None)])
+        else:
+            return
+
+    def get_public_data(self, dataloader):
+        self.public_dataset = get_raw_data(dataloader)
+        
+        mixed_x = []
+        mixed_y = []
+        
+        for i, data_A in enumerate(self.public_dataset[-1]):
+            for j, data_B in enumerate(self.public_dataset[-1]):
+                if not data_A == data_B:
+                    mixedAB = simple_mixup(A=(self.public_dataset[0][i], self.public_dataset[1][i]), 
+                                           B=(self.public_dataset[0][j], self.public_dataset[1][j]))
+                    
+                    mixed_x.append(mixedAB[0])
+                    mixed_y.append(mixedAB[1])
+        
+        ret = (torch.cat(mixed_x, dim=0),
+               torch.cat(mixed_y, dim=0).to(dtype=torch.float32))
+        
+        self.mixed_dataset = CustomDataset(ret)
+        self.mixed_dataloader = DataLoader(self.mixed_dataset, 
+                                           batch_size=int(len(self.mixed_dataset)/self.epochs), 
+                                           shuffle=True)
+        return 
+
+
+def get_onehot(digit, _len=10):
+    ret = torch.zeros(_len)
+    ret[digit] = 1
+    return ret.reshape(-1, 1)
+
+
+def simple_mixup(A, B, _len=10):
+    ax, ay = A
+    bx, by = B
+    
+    retx = []
+    rety = []
+    for lam in np.arange(0, 1, 0.02):
+        mixed_x = lam * ax + (1-lam) * bx
+        mixed_y = torch.tensor([ay, by, lam])
+        
+        retx.append(mixed_x)
+        rety.append(mixed_y)
+    
+    ret = (torch.stack(retx, dim=0), torch.stack(rety))
+    return ret
+
+
+def get_raw_data(dataloader):
+    x_cont = []
+    y_cont = []
+    for (x, y) in dataloader:
+        x_cont.append(x)
+        y_cont.append(y)
+
+    ret = (torch.cat(x_cont), torch.cat(y_cont))
+    return ret
+
+
+class CustomDataset(Dataset):
+    def __init__(self, data):
+        self.X, self.Y = data
+    
+    def __len__(self):
+        return len(self.Y)
+    
+    def __getitem__(self, idx):
+        return self.X[idx], self.Y[idx]

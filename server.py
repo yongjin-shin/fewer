@@ -52,6 +52,8 @@ class Server:
             else [self.args.beta])
 
     def train(self, exp_id=None):
+        self.locals.get_public_data(self.valid_loader)
+        
         for fed_round in range(self.args.nb_rounds):
             start_time = time.time()
             print('==================================================')

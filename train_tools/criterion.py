@@ -27,8 +27,18 @@ class OverhaulLoss(nn.Module):
 
     def forward(self, outputs, target, t_logits=None, acc=None, beta=None):
         logits = outputs
-        loss = torch.zeros(logits.size(0)).to(str(target.device)) # initialize loss
+        
+        if target.size().__len__() > 1 and target.size()[-1] > 1:
+            lam = logits[:, -1]
+            loss1 = F.cross_entropy(logits, target[:, 0].to(dtype=torch.long), reduction='none')
+            loss2 = F.cross_entropy(logits, target[:, 1].to(dtype=torch.long), reduction='none')
+            
+            loss = lam * loss1 + (1-lam) * loss2
+            loss = loss.mean()  # Average Batch Loss
+            return loss
+        
 
+        loss = torch.zeros(logits.size(0)).to(str(target.device)) # initialize loss
         # one-hot + cross-entropy loss
         if self.mode == 'CE':
             # hard_target = onehot(target, N=self.num_classes).float()
