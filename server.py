@@ -52,7 +52,8 @@ class Server:
             else [self.args.beta])
 
     def train(self, exp_id=None):
-        self.locals.get_public_data(self.valid_loader)
+        if self.args.use_mixup:
+            self.locals.get_public_data(self.valid_loader)
         
         for fed_round in range(self.args.nb_rounds):
             start_time = time.time()
@@ -203,6 +204,9 @@ class Server:
         3. 가장 큰 스코어에 대한 beta와 acc를 리턴
         """
         acc = []
+        if self.valid_loader is None:
+            assert len(self.betas) == 1
+            return {'acc': -1}, self.betas[-1]
 
         for beta in self.betas:
             model = logger.load_model(exp_id=exp_id, description=beta)
@@ -281,7 +285,7 @@ class Server:
                 local_data = clients_dataset[row]
                 d_loader = DataLoader(local_data, batch_size=100, shuffle=False)
             else:
-                d_loader = self.valid_loader
+                d_loader = self.test_loader
             
             for col, head_params in enumerate(locals_params):
                 params = copy.deepcopy(body_params)
@@ -297,7 +301,7 @@ class Server:
                 if col == 0:
                     local_unique_data.append(client_acc['label'])
                 
-                valid_acc = get_test_results(self.args, self.dummy_model, self.valid_loader, None,
+                valid_acc = get_test_results(self.args, self.dummy_model, self.test_loader, None,
                                             return_loss=False, return_acc=True, return_logit=False)
                 valid_dataset_results[row, col] = valid_acc['acc']
 
@@ -338,15 +342,15 @@ class Server:
         self.dataset_locals = dataset_locals
 
         # Validation 데이터 불러오기
-        self.valid_loader = DataLoader(dataset_valid, batch_size=100, shuffle=True)
+        if dataset_valid.__len__() > 0:
+            self.valid_loader = DataLoader(dataset_valid, batch_size=100, shuffle=True) 
+            # 각 데이터 target에 대해서 bin count 프린
+            aa = []
+            for i, (x, y) in enumerate(self.valid_loader):
+                aa.append(y)
+            print('Validation Set: ', np.bincount(np.concatenate(aa)))
+        
         self.test_loader = DataLoader(dataset_test, batch_size=100, shuffle=True)
-
-        # 각 데이터 target에 대해서 bin count 프린
-        aa = []
-        for i, (x, y) in enumerate(self.valid_loader):
-            aa.append(y)
-        print('Validation Set: ', np.bincount(np.concatenate(aa)))
-
         self.len_test_data = dataset_test.__len__()
         for i, (x, y) in enumerate(self.test_loader):
             self.true_test_target.append(y)

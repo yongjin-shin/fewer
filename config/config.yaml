@@ -1,7 +1,7 @@
 # federated arguments
 nb_rounds: 300 # communication rounds
 nb_devices: 100  # 로컬 클라이언트 수
-nb_server_data: 1  # 서버가 지니고 있는 데이터 개수
+nb_server_data: 0  # 서버가 지니고 있는 데이터 개수
 local_ep: 5  # 로컬 모델 update 횟수
 local_bs: 50  # 로컬 Training Batch Size
 ratio_clients_per_round: 0.1  # 한 라운드에 몇 명에게 보낼까?
@@ -35,6 +35,11 @@ weight_decay: 0.0000
 scheduler: 'constant'  # cosine | linear | constant | step
 
 # motivation exp
+mixup_mode: 'split'  # split add
+use_mixup: False
+mixup_alpha: 0.2
+mixup_layer: 1
+hidden_mixup: False
 swapping_interval: 0
 noise_interval: 0
 start_freezing:

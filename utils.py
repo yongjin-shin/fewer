@@ -124,6 +124,11 @@ def read_argv():
     parser.add_argument('--exp_name', type=str, default=None)
     parser.add_argument('--ratio_clients_per_round', type=float)
 
+    parser.add_argument('--mixup_mode', type=str)
+    parser.add_argument('--mixup_layer', type=int)
+    parser.add_argument('--mixup_alpha', type=float)
+    parser.add_argument('--hidden_mixup', type=str)
+    parser.add_argument('--use_mixup', type=str)
     parser.add_argument('--swapping_interval', type=int)
     parser.add_argument('--noise_interval', type=int)
     parser.add_argument('--start_freezing', type=int)
@@ -146,8 +151,8 @@ def read_argv():
 
     # general settings
     args.model = additional_args.model if additional_args.model is not None else args.model
-    args.device = additional_args.device if additional_args.device is not None else get_device(args)
     args.cuda_type = additional_args.cuda_type if additional_args.cuda_type is not None else args.cuda_type
+    args.device = additional_args.device if additional_args.device is not None else get_device(args)
     
     # FL settings
     args.server_location = additional_args.server_location if additional_args.server_location is not None else get_server_location(args)
@@ -170,6 +175,12 @@ def read_argv():
     args.weight_decay = additional_args.weight_decay if additional_args.weight_decay is not None else args.weight_decay
 
     # motivation settings
+    args.mixup_mode = additional_args.mixup_mode if additional_args.mixup_mode is not None else args.mixup_mode
+    args.use_mixup = str2bool(additional_args.use_mixup) if additional_args.use_mixup is not None else args.use_mixup
+    args.hidden_mixup = str2bool(additional_args.hidden_mixup) if additional_args.hidden_mixup is not None else args.hidden_mixup
+    args.mixup_alpha = additional_args.mixup_alpha if additional_args.mixup_alpha is not None else args.mixup_alpha
+    args.mixup_layer = additional_args.mixup_layer if additional_args.mixup_layer is not None else args.mixup_layer
+
     args.swapping_interval = additional_args.swapping_interval if additional_args.swapping_interval is not None else args.swapping_interval
     if not args.swapping_interval:
         args.swapping_interval = args.nb_rounds + 1

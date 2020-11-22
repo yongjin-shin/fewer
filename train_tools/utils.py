@@ -244,7 +244,11 @@ def get_server_location(args):
 
 def get_device(args):
     if args.gpu:
-        device = 'cuda:1' if args.cuda_type else 'cuda:0'
+        device = 'cuda:0, 1'
+        
+        import os
+        os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   
+        os.environ["CUDA_VISIBLE_DEVICES"]=f"{args.cuda_type}"
         
     else:
         device = 'cpu'

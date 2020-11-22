@@ -27,28 +27,10 @@ class OverhaulLoss(nn.Module):
 
     def forward(self, outputs, target, t_logits=None, acc=None, beta=None):
         logits = outputs
-        
-        if target.size().__len__() > 1 and target.size()[-1] > 1:
-            lam = target[:, -1]
-            loss1 = F.cross_entropy(logits, target[:, 0].to(dtype=torch.long), reduction='none')
-            loss2 = F.cross_entropy(logits, target[:, 1].to(dtype=torch.long), reduction='none')
-            
-            loss = lam * loss1 + (1-lam) * loss2
-            loss = loss.mean()  # Average Batch Loss
-            # print(loss)
-            # if torch.isnan(loss).any() or loss < 0:
-            #     print("here")
-            return loss
-        
-
         loss = torch.zeros(logits.size(0)).to(str(target.device)) # initialize loss
         # one-hot + cross-entropy loss
         if self.mode == 'CE':
-            # hard_target = onehot(target, N=self.num_classes).float()
-            # loss += cross_entropy(logits, hard_target, reduction='none')
-            loss += F.cross_entropy(logits, target, reduction='none')
-            if torch.isnan(loss).any():
-                print("here")
+            loss = self.ce(logits, target)
 
         ############### Soft Target Methods ##############################################
 
@@ -64,7 +46,8 @@ class OverhaulLoss(nn.Module):
             with torch.no_grad():
                 t_distill = torch.softmax(t_logits/self.temp, dim=1)
 
-            ce_loss = cross_entropy(logits, target, reduction='none')
+            # ce_loss = cross_entropy(logits, target, reduction='none')
+            ce_loss = self.ce(logits, target)
             kd_loss = ((self.temp)**2) * cross_entropy(logits/self.temp, t_distill, reduction='none')
 
             if beta is None:
@@ -92,6 +75,24 @@ class OverhaulLoss(nn.Module):
 
         return loss
 
+    def ce(self, logits, target):
+        if target.size().__len__() > 1 and target.size()[-1] > 1:  # mixup cross entropy
+            lam = target[:, -1]
+            loss1 = F.cross_entropy(logits, target[:, 0].to(dtype=torch.long), reduction='none')
+            loss2 = F.cross_entropy(logits, target[:, 1].to(dtype=torch.long), reduction='none')
+            
+            loss = lam * loss1 + (1-lam) * loss2
+        else:
+            loss = torch.zeros(logits.size(0)).to(str(target.device)) # initialize loss
+            loss += F.cross_entropy(logits, target, reduction='none')
+        
+        if torch.isnan(loss).any():
+            print("here")
+        
+        return loss
+            
+            
+        
 
 ###########################################################################################################################    
 def onehot(indexes, N=None, ignore_index=None):

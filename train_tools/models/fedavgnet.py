@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch
 
+
 __all__ = ['MnistCNN', 'CifarCNN']
 
 class MnistCNN(nn.Module):
@@ -36,11 +37,59 @@ class CifarCNN(nn.Module):
         self.mp = nn.MaxPool2d(2)
         print("CifarCNN was made")
 
-    def forward(self, x):
+    def forward(self, x, y=None, mix_layer=None, alpha=None, mixup_mode='add'):
+        if mix_layer == 0:
+            x, y = simple_mixup(x, y, alpha, mixup_mode)
         x = self.mp(self.relu(self.conv1(x)))
+        
+        if mix_layer == 1:
+            x, y = simple_mixup(x, y, alpha, mixup_mode)
         x = self.mp(self.relu(self.conv2(x)))
+        
         x = torch.flatten(x, 1)
+        
+        if mix_layer == 2:
+            x, y = simple_mixup(x, y, alpha, mixup_mode)
         x = self.relu(self.fc1(x))
+        
+        if mix_layer == 3:
+            x, y = simple_mixup(x, y, alpha, mixup_mode)
         x = self.relu(self.fc2(x))
+        
+        if mix_layer == 4:
+            x, y = simple_mixup(x, y, alpha, mixup_mode)
         x = self.fc3(x)
-        return x
+        
+        if y is None and mix_layer is None:
+            return x
+        elif y is not None and mix_layer is not None:
+            return x, y
+        else:
+            raise RuntimeError("Here")
+
+
+def simple_mixup(x, y, alpha, mixup_mode):
+    if 'add' == mixup_mode:
+        idx = torch.randperm(len(y))
+        randx = x.clone()[idx]
+        randy = y.clone()[idx]
+    elif 'split' == mixup_mode:
+        idx = int(len(y)/2)
+        randx, randy = x[idx:].clone(), y[idx:].clone()
+        x, y = x[:idx], y[:idx]
+    else:
+        raise NotImplementedError
+
+    # lam = torch.rand(len(idx)).reshape(-1, 1, 1, 1).to(x.device)
+    beta = torch.distributions.beta.Beta(alpha, alpha)
+    lam = torch.Tensor([beta.sample() for _ in range(len(randy))]).to(x.device)
+    lam_weight = torch.cat([b.expand_as(x[0]).unsqueeze(0) for b in lam], dim=0)
+
+    assert torch.all(lam >= 0.0)
+    assert torch.all(lam <= 1.0)
+
+    mixed_x = lam_weight * x + (1 - lam_weight) * randx
+    mixed_y = torch.stack((y.to(lam.dtype), randy.to(lam.dtype), lam)).T
+    ret = (mixed_x, mixed_y)
+    return ret
+

@@ -3,11 +3,10 @@ from termcolor import colored
 import numpy as np
 from itertools import cycle
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset, Dataset
+from torch.utils.data import DataLoader, TensorDataset, Dataset, ConcatDataset
 from train_tools.utils import create_nets
 from train_tools.criterion import OverhaulLoss
 from train_tools.utils import get_test_results, compute_kl_divergence, compute_js_divergence
-
 
 __all__ = ['Local']
 
@@ -45,12 +44,13 @@ class Local:
         self.fast_list = None
 
         self.public_dataset = None
+        self.client_dataset = None
 
     def train(self, beta=None):
         local_acc = None
         if self.args.global_loss_type != 'none':
             self.keep_global()
-            
+
         if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD'):
             self.keep_global()
             if self.args.use_beta_scheduler:
@@ -59,46 +59,50 @@ class Local:
                 local_acc = local_ret['acc']
 
         t_logits = None
-        # fake_loader = cycle([(None, None)])
-        fake_loader = self.mixed_dataloader
-        ret_norm = dict(zip(self.layers_name, [[] for _ in range(len(self.layers_name))]))
 
+        ret_norm = dict(zip(self.layers_name, [[] for _ in range(len(self.layers_name))]))
         train_loss, train_acc, itr, ep = 0, 0, 0, 0
         self.model.to(self.args.device)
 
-        # obj = Testobject(self.layers_name)
-
+        if self.args.use_mixup:
+            p_samples = torch.Tensor([1/len(self.mixed_dataset.Y)] * len(self.mixed_dataset.Y)).to(self.args.device)
+            data_loader = self.generate_fake_data()
+        else:
+            data_loader = self.data_loader
+            
         for ep in range(self.epochs):
-            for itr, ((data, target), (fake_data, fake_target)) in enumerate(zip(self.data_loader, fake_loader)):
+            for batch in data_loader:
                 # forward pass
+                data, target = batch
                 data = data.to(self.args.device)
                 target = target.to(self.args.device)
-                if fake_data is not None:
-                    # assert torch.all(fake_target[:, -1]>= 0, dim=0) ; 'why negative values'
+                # print(torch.unique(target))
+                if not self.args.use_mixup:
+                    output = self.model(data)
+                else:
+                    if self.args.mixup_mode == 'split':
+                        a_idx = p_samples.multinomial(len(target), replacement=True)
+                        anchor_X, anchor_Y = self.mixed_dataset.X[a_idx].to(self.args.device), self.mixed_dataset.Y[a_idx].to(self.args.device)
+                        data = torch.cat((data, anchor_X), dim=0)
+                        target = torch.cat((target, anchor_Y), dim=0)
                     
-                    x = torch.cat((data, fake_data.to(self.args.device)), dim=0)
-                    target_y = torch.zeros((len(target), 3)).to(self.args.device)
-                    target_y[:, 0] =  target
-                    target_y[:, -1] = 1
-                    
-                    y = torch.cat((target_y, fake_target.to(self.args.device)), dim=0)
-                    idx = torch.randperm(len(y))
-                    data, target = x[idx], y[idx]
-
-                output = self.model(data)
-                if (self.args.mode == 'KD') or (self.args.mode == 'FedLSD'):
+                    output, target = self.model(data, target,
+                                                mix_layer=self.args.mixup_layer,
+                                                alpha=self.args.mixup_alpha,
+                                                mixup_mode=self.args.mixup_mode)
+                
+                if self.args.mode == 'KD':
                     with torch.no_grad():
                         if self.args.oracle:
                             t_logits = self.oracle(data)
                         else:
                             t_logits = self.round_global(data)
-                        
+
                 loss = self.criterion(output, target, t_logits, acc=local_acc, beta=beta)
-                # print(loss)
 
                 if self.args.global_loss_type != 'none' and self.args.global_alpha > 0:
                     loss += (self.args.global_alpha * self.loss_to_round_global())
-                
+
                 # backward pass
                 self.optim.zero_grad()
                 loss.backward()
@@ -117,9 +121,9 @@ class Local:
 
         ret = {
             'loss': local_loss,
-            'acc' : local_acc,
-            'kld'  : kld,
-            'norm' : ret_norm
+            'acc': local_acc,
+            'kld': kld,
+            'norm': ret_norm
         }
 
         self.model.to(self.args.server_location)
@@ -156,14 +160,15 @@ class Local:
             raise RuntimeError
         else:
             self.data_loader = DataLoader(client_dataset, batch_size=self.args.local_bs, shuffle=True)
-            
+            self.client_dataset = get_raw_data(self.data_loader)
+
     def get_model(self, server_model, layers_name):
         self.model.load_state_dict(server_model)
         self.layers_name = layers_name
 
         # for p in self.model.parameters():
         #     p.register_hook(lambda grad: torch.clamp(grad, -1, 1))
-        
+
     def get_lr(self, server_lr):
         if server_lr < 0:
             raise RuntimeError("Less than 0")
@@ -181,7 +186,8 @@ class Local:
             slow_params = list(
                 map(lambda x: x[1], list(filter(lambda kv: kv[0] in self.slow_list, self.model.named_parameters()))))
             base_params = list(
-                map(lambda x: x[1], list(filter(lambda kv: kv[0] not in self.slow_list, self.model.named_parameters()))))
+                map(lambda x: x[1],
+                    list(filter(lambda kv: kv[0] not in self.slow_list, self.model.named_parameters()))))
 
             self.optim = torch.optim.SGD(
                 [{'params': base_params},
@@ -210,24 +216,25 @@ class Local:
             )
 
         return
-    
+
     def add_slower_layer(self, slow_layer, slow_ratio):
         if not isinstance(slow_layer, list):
             slow_layer = list(slow_layer)
-            
+
         if self.args.slow_layer is None:
             self.args.slow_layer = []
-        
+
         self.args.slow_layer += slow_layer
         self.args.slow_ratio = slow_ratio
-        
+
         return
-        
+
     def upload_model(self):
         return copy.deepcopy(self.model.state_dict())
-    
+
     def reset(self):
         self.data_loader = None
+        self.client_dataset = None
         self.lr_scheduler = None
         self.round_global = None
         self.slow_list = None
@@ -238,7 +245,7 @@ class Local:
         self.round_global = copy.deepcopy(self.model)
         for params in self.round_global.parameters():
             params.requires_grad = False
-        
+
     def loss_to_round_global(self):
         vec = []
         if self.args.global_loss_type == 'l2':
@@ -253,13 +260,13 @@ class Local:
                     if self.args.slow_layer is not None and name1 in self.slow_list:
                         vec.append((param1 - param2).view(-1, 1))
                     else:
-                        vec.append((param1-param2).view(-1, 1))
+                        vec.append((param1 - param2).view(-1, 1))
 
             all_vec = torch.cat(vec)
             loss = torch.norm(all_vec)  # (all_vec** 2).sum().sqrt()
         else:
             raise NotImplemented
-        
+
         return loss * 0.5
 
     def read_oracle(self):
@@ -275,7 +282,8 @@ class Local:
         for itr, (data, true_target) in enumerate(self.data_loader):
             for j in range(2):
                 target = torch.tensor(
-                    [random.choice([x for x in range(10) if x not in torch.unique(true_target)]) for _ in range(len(true_target))],
+                    [random.choice([x for x in range(10) if x not in torch.unique(true_target)]) for _ in
+                     range(len(true_target))],
                     device=self.args.device)
                 data = data.to(self.args.device)
 
@@ -297,7 +305,7 @@ class Local:
                     opt.step()
 
                     idx = torch.argmax(output, dim=1) == target
-                    acc = torch.sum(idx).item()/len(target)
+                    acc = torch.sum(idx).item() / len(target)
                     # print(acc)
                     cnt += 1
                 # print(f"{cnt}: {acc}")
@@ -312,61 +320,44 @@ class Local:
         else:
             return cycle([(None, None)])
 
-    def generate_mixup(self):
-        if self.public_dataset is None:
-            return cycle([(None, None)])
+    def generate_fake_data(self):
+        if self.args.mixup_mode == 'add':
+            mixed_data = (
+                torch.cat((self.client_dataset[0], self.mixed_dataset.X)),
+                torch.cat((self.client_dataset[-1], self.mixed_dataset.Y))
+            )
+            mixed_dataset = CustomDataset(mixed_data)
+            
+            return DataLoader(mixed_dataset,
+                              batch_size=self.args.local_bs,
+                              shuffle=True)
+        elif self.args.mixup_mode == 'split':
+            return self.data_loader
         else:
-            return
+            raise NotImplementedError
 
     def get_public_data(self, dataloader):
+        print(colored("Get pulic dataset", 'red'))
         self.public_dataset = get_raw_data(dataloader)
-        
+
         mixed_x = []
         mixed_y = []
-        
+
         for i, data_A in enumerate(self.public_dataset[-1]):
-            for j, data_B in enumerate(self.public_dataset[-1][i:]):
-                if not data_A == data_B:
-                    mixedAB = simple_mixup(A=(self.public_dataset[0][i], self.public_dataset[1][i]), 
-                                           B=(self.public_dataset[0][j], self.public_dataset[1][j]))
-                    
-                    mixed_x.append(mixedAB[0])
-                    mixed_y.append(mixedAB[1])
-        
-        ret = (torch.cat(mixed_x, dim=0),
-               torch.cat(mixed_y, dim=0).to(dtype=torch.float32))
-        
+            mixed_x.append(self.public_dataset[0][i])
+            mixed_y.append((self.public_dataset[1][i]).reshape(-1, 1))
+        ret = (torch.stack(mixed_x, dim=0),
+               torch.cat(mixed_y, dim=0))
+
         self.mixed_dataset = CustomDataset(ret)
-        self.mixed_dataloader = DataLoader(self.mixed_dataset, 
-                                           batch_size=int(len(self.mixed_dataset)/self.epochs), 
-                                           shuffle=True)
         print(colored(len(self.mixed_dataset), 'red'))
-        return 
+        return
 
 
 def get_onehot(digit, _len=10):
     ret = torch.zeros(_len)
     ret[digit] = 1
     return ret.reshape(-1, 1)
-
-
-def simple_mixup(A, B, _len=10):
-    ax, ay = A
-    bx, by = B
-    
-    retx = []
-    rety = []
-    for lam in np.arange(0, 1, 0.05):
-        assert lam >= 0.0; 'Something wrong'
-        
-        mixed_x = lam * ax + (1-lam) * bx
-        mixed_y = torch.tensor([ay, by, lam])
-        
-        retx.append(mixed_x)
-        rety.append(mixed_y)
-    
-    ret = (torch.stack(retx, dim=0), torch.stack(rety))
-    return ret
 
 
 def get_raw_data(dataloader):
@@ -383,9 +374,10 @@ def get_raw_data(dataloader):
 class CustomDataset(Dataset):
     def __init__(self, data):
         self.X, self.Y = data
-    
+        self.Y = self.Y.reshape(-1)
+
     def __len__(self):
         return len(self.Y)
-    
+
     def __getitem__(self, idx):
         return self.X[idx], self.Y[idx]
