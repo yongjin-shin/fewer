@@ -1,5 +1,4 @@
-# ai602_fl
-Hello World
+# FEWER: Federated Weight Recovery
 
 ## Environments
 ```shell script
