@@ -27,3 +27,14 @@ Then You can run all the experiments with the following script:
 ```python main.py setings```
 
 * Caution on UnicodeDecodeError for config.yaml
+
+## Citing this work
+```
+@inproceedings{shin2020fewer,
+  title={FEWER: Federated Weight Recovery},
+  author={Shin, Yongjin and Lee, Gihun and Shin, Seungjae and Yun, Se-young and Moon, Il-chul},
+  booktitle={Proceedings of the 1st Workshop on Distributed Machine Learning},
+  pages={1--6},
+  year={2020}
+}
+```
